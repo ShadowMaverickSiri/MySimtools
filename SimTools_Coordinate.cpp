@@ -28,7 +28,7 @@ namespace SimTools {
         Vector3 ecef;
         ecef[0] = (N + h) * cosLat * cosLon;
         ecef[1] = (N + h) * cosLat * sinLon;
-        ecef[2] = (N * (1 - Constants::EARTH_FLATTENING) * (1 - Constants::EARTH_FLATTENING) + h) * sinLat;
+        ecef[2] = (N * (1 - e2) + h) * sinLat;
 
         return ecef;
     }
@@ -49,8 +49,8 @@ namespace SimTools {
         double N, h;
 
         for (int iter = 0; iter < 10; iter++) {
-            double sinLat = std::sin(lat * Constants::DEG_TO_RAD);
-            double cosLat = std::cos(lat * Constants::DEG_TO_RAD);
+            double sinLat = std::sin(lat);
+            double cosLat = std::cos(lat);
             N = Constants::EARTH_SEMIMAJOR / std::sqrt(1 - e2 * sinLat * sinLat);
             h = p / cosLat - N;
 
@@ -130,11 +130,24 @@ namespace SimTools {
         double lon = longitude * Constants::DEG_TO_RAD;
         double lat = latitude * Constants::DEG_TO_RAD;
 
-        Matrix3 R_y = RotationMatrix(Constants::PI / 2.0 - lon, 1);  // 绕Y轴
-        Matrix3 R_x = RotationMatrix(Constants::PI / 2.0 - lat, 2);  // 绕X轴
-        Matrix3 R_z = RotationMatrix(lat, 3);                        // 绕Z轴
+        double sinLon = std::sin(lon);
+        double cosLon = std::cos(lon);
+        double sinLat = std::sin(lat);
+        double cosLat = std::cos(lat);
 
-        return (R_z * R_x * R_y).transpose();
+        // ECEF 到 NED 的旋转矩阵（标准公式）
+        Matrix3 R;
+        R(0, 0) = -sinLat * cosLon;
+        R(0, 1) = -sinLat * sinLon;
+        R(0, 2) = cosLat;
+        R(1, 0) = -sinLon;
+        R(1, 1) = cosLon;
+        R(1, 2) = 0;
+        R(2, 0) = -cosLat * cosLon;
+        R(2, 1) = -cosLat * sinLon;
+        R(2, 2) = -sinLat;
+
+        return R;
     }
 
     Coordinate::Matrix3 Coordinate::NedToEcefMatrix(double longitude, double latitude) {

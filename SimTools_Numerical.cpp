@@ -41,7 +41,6 @@ namespace SimTools {
                                            double t_end,
                                            double tolerance) {
         // 自适应步长 Runge-Kutta-Fehlberg 方法
-        int n = static_cast<int>(y0.size());
         VectorXd y = y0;
         double t = t0;
         double h = (t_end - t0) / 100.0;  // 初始步长

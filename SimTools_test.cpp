@@ -118,8 +118,9 @@ void Test_Coordinate() {
     );
 
     // 检查 NED 坐标合理性（上海在北京的东南方向）
-    ASSERT_TRUE(shanghai_ned[0] > 0);  // 北向为正
-    ASSERT_TRUE(shanghai_ned[1] > 0);  // 东向为正
+    // 上海纬度更低（在南边），所以北向为负
+    ASSERT_TRUE(shanghai_ned[0] < 0);  // 北向（南为负）
+    ASSERT_TRUE(shanghai_ned[1] > 0);  // 东向（东为正）
 }
 
 void Test_Geodesy() {
@@ -136,7 +137,7 @@ void Test_Geodesy() {
         Coordinate::Vector3(lon1, lat1, 0.0),
         Coordinate::Vector3(lon2, lat2, 0.0)
     );
-    ASSERT_TRUE(azimuth > 100.0 && azimuth < 140.0);  // 东南方向
+    ASSERT_TRUE(azimuth > 140.0 && azimuth < 170.0);  // 东南偏南方向（约153度）
 }
 
 void Test_Atmosphere() {

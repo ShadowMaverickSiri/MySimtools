@@ -292,7 +292,7 @@ namespace SimTools {
     double Geodesy::SiteDistance(const Vector3d& gpsA, const Vector3d& gpsB) {
         Vector3d posA = Coordinate::GpsToEcef(gpsA);
         Vector3d posB = Coordinate::GpsToEcef(gpsB);
-        return Math::Norm2(posB - posA);
+        return (posB - posA).norm();  // 使用成员函数避免重载歧义
     }
 
 } // namespace SimTools

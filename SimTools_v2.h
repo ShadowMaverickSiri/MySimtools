@@ -10,6 +10,8 @@
 #include <sstream>
 #include <cmath>
 #include <memory>
+#include <functional>
+#include <utility>
 
 // ============================================================
 // Eigen 库检测与兼容层
@@ -60,8 +62,22 @@
                 return Vector3d(data[0] * scalar, data[1] * scalar, data[2] * scalar);
             }
 
+            inline Vector3d& operator*=(double scalar) {
+                data[0] *= scalar;
+                data[1] *= scalar;
+                data[2] *= scalar;
+                return *this;
+            }
+
             inline Vector3d operator/(double scalar) const {
                 return Vector3d(data[0] / scalar, data[1] / scalar, data[2] / scalar);
+            }
+
+            inline Vector3d& operator/=(double scalar) {
+                data[0] /= scalar;
+                data[1] /= scalar;
+                data[2] /= scalar;
+                return *this;
             }
 
             inline double dot(const Vector3d& other) const {
@@ -115,6 +131,11 @@
                 data[0] = data[4] = data[8] = 1.0;
             }
 
+            // 静态方法：创建单位矩阵
+            static Matrix3d Identity() {
+                return Matrix3d();
+            }
+
             inline double& operator()(int row, int col) {
                 return data[row * 3 + col];
             }
@@ -154,8 +175,24 @@
                 return result;
             }
 
+            inline Matrix3d operator+(const Matrix3d& other) const {
+                Matrix3d result;
+                for (int i = 0; i < 9; i++) {
+                    result.data[i] = data[i] + other.data[i];
+                }
+                return result;
+            }
+
             inline double trace() const {
                 return data[0] + data[4] + data[8];
+            }
+
+            inline double norm() const {
+                double sum = 0;
+                for (int i = 0; i < 9; i++) {
+                    sum += data[i] * data[i];
+                }
+                return std::sqrt(sum);
             }
         };
 
@@ -187,6 +224,28 @@
                 return result;
             }
 
+            inline VectorXd operator/(double scalar) const {
+                VectorXd result(this->size());
+                for (size_t i = 0; i < static_cast<size_t>(this->size()); i++) {
+                    result[i] = (*this)[i] / scalar;
+                }
+                return result;
+            }
+
+            inline VectorXd& operator*=(double scalar) {
+                for (size_t i = 0; i < static_cast<size_t>(this->size()); i++) {
+                    (*this)[i] *= scalar;
+                }
+                return *this;
+            }
+
+            inline VectorXd& operator+=(const VectorXd& other) {
+                for (size_t i = 0; i < static_cast<size_t>(this->size()); i++) {
+                    (*this)[i] += other[i];
+                }
+                return *this;
+            }
+
             inline double norm() const {
                 double sum = 0;
                 for (const auto& val : *this) {
@@ -198,7 +257,33 @@
             inline int size() const {
                 return static_cast<int>(std::vector<double>::size());
             }
+
+            // 返回每个元素的绝对值
+            inline VectorXd cwiseAbs() const {
+                VectorXd result(this->size());
+                for (size_t i = 0; i < static_cast<size_t>(this->size()); i++) {
+                    result[i] = std::abs((*this)[i]);
+                }
+                return result;
+            }
+
+            // 返回最大值系数
+            inline double maxCoeff() const {
+                if (this->empty()) return 0.0;
+                double maxVal = (*this)[0];
+                for (size_t i = 1; i < static_cast<size_t>(this->size()); i++) {
+                    if ((*this)[i] > maxVal) {
+                        maxVal = (*this)[i];
+                    }
+                }
+                return maxVal;
+            }
         };
+
+        // 全局运算符：double * VectorXd
+        inline VectorXd operator*(double scalar, const VectorXd& vec) {
+            return vec * scalar;
+        }
 
         // 4D 向量（四元数）
         struct Vector4d {
@@ -939,6 +1024,7 @@ namespace SimTools {
         class Timer {
         public:
             Timer();
+            ~Timer();
             void Start();
             void Stop();
             double ElapsedSeconds() const;

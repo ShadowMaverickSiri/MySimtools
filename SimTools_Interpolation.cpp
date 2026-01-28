@@ -183,7 +183,9 @@ namespace SimTools {
             return 0.0;
         }
 
-        auto [i, j] = FindIndex2D(u, v, x, y);
+        std::pair<int, int> index = FindIndex2D(u, v, x, y);
+        int i = index.first;
+        int j = index.second;
 
         // 边界处理
         if (i == 0) i = 1;

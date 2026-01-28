@@ -13,6 +13,16 @@ out/
 *.dll
 *.exe
 
+# Debug and test files
+debug_*.cpp
+debug_*.exe
+simple_test.cpp
+run_examples.cpp
+test_data.txt
+
+# Documentation that doesn't need to be in repo
+VS_FIX_GUIDE.md
+
 # IDE files
 .vs/
 .vscode/
@@ -31,6 +41,7 @@ Makefile
 
 # Logs
 *.log
+simulation.log
 
 # OS files
 .DS_Store

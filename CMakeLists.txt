@@ -12,7 +12,11 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # 编译选项
 if(MSVC)
-    add_compile_options(/W4 /WX)
+    # MSVC 编译器选项
+    add_compile_options(/W4)           # 警告级别 4
+    add_compile_options(/utf-8)        # 支持 UTF-8 编码（中文注释）
+    # 不要使用 /WX，它会把警告当作错误
+    # add_compile_options(/WX)
 else()
     add_compile_options(-Wall -Wextra -Wpedantic -Werror)
 endif()
@@ -36,10 +40,13 @@ if(EIGEN3_FOUND)
     message(STATUS "Eigen3 found: ${EIGEN3_INCLUDE_DIR}")
     set(USE_EIGEN ON)
 else()
-    message(STATUS "Eigen3 not found, using C++ standard library implementation")
-    set(USE_EIGEN OFF)
+    message(STATUS "Eigen3 not found via find_package, checking manually...")
 
-    # 如果设置了 EIGEN_ROOT，手动添加包含路径
+    # 如果设置了 EIGEN_ROOT 或 Eigen3_ROOT，手动添加包含路径
+    if(NOT EIGEN_ROOT AND DEFINED ENV{Eigen3_ROOT})
+        set(EIGEN_ROOT "$ENV{Eigen3_ROOT}")
+    endif()
+
     if(EIGEN_ROOT AND EXISTS "${EIGEN_ROOT}")
         if(EXISTS "${EIGEN_ROOT}/Eigen/Dense")
             set(EIGEN3_INCLUDE_DIR "${EIGEN_ROOT}")
@@ -48,6 +55,11 @@ else()
         else()
             message(WARNING "EIGEN_ROOT is set but Eigen/Dense not found at ${EIGEN_ROOT}")
         endif()
+    endif()
+
+    if(NOT USE_EIGEN)
+        message(STATUS "Eigen3 not found, using C++ standard library implementation")
+        set(USE_EIGEN OFF)
     endif()
 endif()
 
@@ -76,6 +88,7 @@ target_include_directories(SimTools_static PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
 )
 target_compile_features(SimTools_static PUBLIC cxx_std_14)
+target_compile_definitions(SimTools_static PUBLIC SIMTOOLS_STATIC)
 
 # 如果使用 Eigen，添加包含目录和定义
 if(USE_EIGEN)
