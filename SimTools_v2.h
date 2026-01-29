@@ -119,6 +119,12 @@
             inline Vector3d cwiseAbs() const {
                 return Vector3d(std::abs(data[0]), std::abs(data[1]), std::abs(data[2]));
             }
+
+            // 输出流操作符（用于 std::cout）
+            friend std::ostream& operator<<(std::ostream& os, const Vector3d& v) {
+                os << "(" << v[0] << ", " << v[1] << ", " << v[2] << ")";
+                return os;
+            }
         };
 
         // 3x3 矩阵类型

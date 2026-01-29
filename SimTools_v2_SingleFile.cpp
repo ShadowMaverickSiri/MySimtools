@@ -927,15 +927,25 @@ namespace SimTools {
     }
 
     Matrix3d MatrixUtils::OuterProduct(const Vector3d& a,
-                                             const Vector3d& b) {
-        return a * b.transpose();
+                                         const Vector3d& b) {
+        Matrix3d result;
+        result(0, 0) = a[0] * b[0];
+        result(0, 1) = a[0] * b[1];
+        result(0, 2) = a[0] * b[2];
+        result(1, 0) = a[1] * b[0];
+        result(1, 1) = a[1] * b[1];
+        result(1, 2) = a[1] * b[2];
+        result(2, 0) = a[2] * b[0];
+        result(2, 1) = a[2] * b[1];
+        result(2, 2) = a[2] * b[2];
+        return result;
     }
 
     Matrix3d MatrixUtils::SkewSymmetric(const Vector3d& v) {
         Matrix3d S;
-        S << 0, -v[2], v[1],
-             v[2], 0, -v[0],
-             -v[1], v[0], 0;
+        S(0, 0) = 0;      S(0, 1) = -v[2];  S(0, 2) = v[1];
+        S(1, 0) = v[2];   S(1, 1) = 0;      S(1, 2) = -v[0];
+        S(2, 0) = -v[1];  S(2, 1) = v[0];   S(2, 2) = 0;
         return S;
     }
 
@@ -943,9 +953,15 @@ namespace SimTools {
         Matrix3d R;
         double q0 = q[0], q1 = q[1], q2 = q[2], q3 = q[3];
 
-        R << 1 - 2*(q2*q2 + q3*q3), 2*(q1*q2 - q0*q3),     2*(q1*q3 + q0*q2),
-             2*(q1*q2 + q0*q3),     1 - 2*(q1*q1 + q3*q3), 2*(q2*q3 - q0*q1),
-             2*(q1*q3 - q0*q2),     2*(q2*q3 + q0*q1),     1 - 2*(q1*q1 + q2*q2);
+        R(0, 0) = 1 - 2*(q2*q2 + q3*q3);
+        R(0, 1) = 2*(q1*q2 - q0*q3);
+        R(0, 2) = 2*(q1*q3 + q0*q2);
+        R(1, 0) = 2*(q1*q2 + q0*q3);
+        R(1, 1) = 1 - 2*(q1*q1 + q3*q3);
+        R(1, 2) = 2*(q2*q3 - q0*q1);
+        R(2, 0) = 2*(q1*q3 - q0*q2);
+        R(2, 1) = 2*(q2*q3 + q0*q1);
+        R(2, 2) = 1 - 2*(q1*q1 + q2*q2);
 
         return R;
     }
@@ -959,23 +975,24 @@ namespace SimTools {
     }
 
     Matrix3d MatrixUtils::EulerToMatrix(double roll, double pitch, double yaw) {
-        Matrix3d Rx, Ry, Rz;
-
         double cr = std::cos(roll), sr = std::sin(roll);
         double cp = std::cos(pitch), sp = std::sin(pitch);
         double cy = std::cos(yaw), sy = std::sin(yaw);
 
-        Rx << 1, 0, 0,
-              0, cr, sr,
-              0, -sr, cr;
+        Matrix3d Rx;
+        Rx(0, 0) = 1;   Rx(0, 1) = 0;   Rx(0, 2) = 0;
+        Rx(1, 0) = 0;   Rx(1, 1) = cr;  Rx(1, 2) = sr;
+        Rx(2, 0) = 0;   Rx(2, 1) = -sr; Rx(2, 2) = cr;
 
-        Ry << cp, 0, -sp,
-              0, 1, 0,
-              sp, 0, cp;
+        Matrix3d Ry;
+        Ry(0, 0) = cp;  Ry(0, 1) = 0;   Ry(0, 2) = -sp;
+        Ry(1, 0) = 0;   Ry(1, 1) = 1;   Ry(1, 2) = 0;
+        Ry(2, 0) = sp;  Ry(2, 1) = 0;   Ry(2, 2) = cp;
 
-        Rz << cy, sy, 0,
-              -sy, cy, 0,
-              0, 0, 1;
+        Matrix3d Rz;
+        Rz(0, 0) = cy;  Rz(0, 1) = sy;  Rz(0, 2) = 0;
+        Rz(1, 0) = -sy; Rz(1, 1) = cy;  Rz(1, 2) = 0;
+        Rz(2, 0) = 0;   Rz(2, 1) = 0;   Rz(2, 2) = 1;
 
         return Rz * Ry * Rx;
     }
