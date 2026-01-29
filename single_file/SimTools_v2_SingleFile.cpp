@@ -1037,6 +1037,9 @@ namespace SimTools {
 // 主函数示例
 // ============================================================
 
+// 只有在独立编译时才定义 main()
+// 当此文件被其他程序包含时，不会编译这个 main()
+#ifndef SIMTOOLS_SINGLE_FILE_NO_MAIN
 int main() {
     using namespace SimTools;
 
@@ -1160,3 +1163,4 @@ int main() {
 
     return 0;
 }
+#endif // SIMTOOLS_SINGLE_FILE_NO_MAIN
