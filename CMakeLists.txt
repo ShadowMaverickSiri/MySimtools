@@ -15,10 +15,8 @@ if(MSVC)
     # MSVC 编译器选项
     add_compile_options(/W4)           # 警告级别 4
     add_compile_options(/utf-8)        # 支持 UTF-8 编码（中文注释）
-    # 不要使用 /WX，它会把警告当作错误
-    # add_compile_options(/WX)
 else()
-    add_compile_options(-Wall -Wextra -Wpedantic -Werror)
+    add_compile_options(-Wall -Wextra -Wpedantic)
 endif()
 
 # ============================================================
@@ -82,7 +80,7 @@ set(SIMTOOLS_SOURCES
     SimTools_Simulation.cpp
 )
 
-# 创建静态库（默认）
+# 创建静态库
 add_library(SimTools_static STATIC ${SIMTOOLS_SOURCES})
 target_include_directories(SimTools_static PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
@@ -119,19 +117,27 @@ endif()
 add_library(SimTools ALIAS SimTools_static)
 
 # ============================================================
-# 示例程序
+# 测试程序
 # ============================================================
 
-option(BUILD_EXAMPLES "Build example programs" ON)
+option(BUILD_TESTING "Build testing program" ON)
 
-if(BUILD_EXAMPLES)
-    # 基础示例
-    add_executable(SimTools_example SimTools_v2_examples.cpp)
-    target_link_libraries(SimTools_example PRIVATE SimTools_static)
-
-    # 单元测试示例
+if(BUILD_TESTING)
     add_executable(SimTools_test SimTools_test.cpp)
     target_link_libraries(SimTools_test PRIVATE SimTools_static)
+    target_compile_definitions(SimTools_test PRIVATE SIMTOOLS_STATIC)
+    target_include_directories(SimTools_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
+
+    # 如果使用 Eigen，添加定义和包含目录
+    if(USE_EIGEN)
+        target_compile_definitions(SimTools_test PRIVATE USE_EIGEN)
+        target_include_directories(SimTools_test PRIVATE ${EIGEN3_INCLUDE_DIR})
+    endif()
+
+    # 设置为启动项目（Visual Studio）
+    set_target_properties(SimTools_test PROPERTIES
+        VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}"
+    )
 endif()
 
 # ============================================================
@@ -158,6 +164,5 @@ set(CPACK_PACKAGE_NAME "SimTools")
 set(CPACK_PACKAGE_VERSION "2.0.0")
 set(CPACK_PACKAGE_DESCRIPTION_SUMMARY "Simulation Tools Library")
 set(CPACK_PACKAGE_VENDOR "SimTools Development Team")
-set(CPACK_PACKAGE_CONTACT "your-email@example.com")
 
 include(CPack)

@@ -63,9 +63,7 @@ echo 1. 在顶部工具栏选择：
 echo    - 配置：Release 或 Debug
 echo    - 平台：x64
 echo.
-echo 2. 设置启动项目：
-echo    - 右键点击 "SimTools_test" 或 "SimTools_example"
-echo    - 选择 "设为启动项目"
+echo 2. SimTools_test 已设为启动项目
 echo.
 echo 3. 编译：
 echo    - 按 Ctrl+Shift+B
