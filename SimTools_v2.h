@@ -298,22 +298,130 @@
         }
 
         // 4D 向量（四元数）
+        // 四元数表示：q = w + xi + yj + zk (w为标量部分, x,y,z为向量部分)
         struct Vector4d {
             double data[4];
 
             Vector4d() : data{0, 0, 0, 0} {}
             Vector4d(double w, double x, double y, double z) : data{w, x, y, z} {}
 
+            // 静态方法：创建单位四元数
+            static Vector4d Identity() {
+                return Vector4d(1, 0, 0, 0);
+            }
+
+            // 静态方法：从轴角创建四元数
+            // axis: 旋转轴（单位向量）, angle: 旋转角度（弧度）
+            static Vector4d FromAxisAngle(const Vector3d& axis, double angle);
+
+            // 静态方法：从欧拉角创建四元数 (ZYX顺序，即yaw-pitch-roll)
+            static Vector4d FromEuler(double roll, double pitch, double yaw);
+
+            // 元素访问
             inline double& operator[](int i) { return data[i]; }
             inline const double& operator[](int i) const { return data[i]; }
 
+            // 标量部分 (w)
+            inline double w() const { return data[0]; }
+            inline void setW(double val) { data[0] = val; }
+
+            // 向量部分 (x, y, z)
+            inline double x() const { return data[1]; }
+            inline double y() const { return data[2]; }
+            inline double z() const { return data[3]; }
+            inline void setX(double val) { data[1] = val; }
+            inline void setY(double val) { data[2] = val; }
+            inline void setZ(double val) { data[3] = val; }
+
+            // 模/范数
+            inline double norm() const {
+                return std::sqrt(data[0]*data[0] + data[1]*data[1] +
+                                data[2]*data[2] + data[3]*data[3]);
+            }
+
+            // 模的平方
+            inline double squaredNorm() const {
+                return data[0]*data[0] + data[1]*data[1] +
+                       data[2]*data[2] + data[3]*data[3];
+            }
+
+            // 归一化
             inline Vector4d normalized() const {
-                double n = std::sqrt(data[0]*data[0] + data[1]*data[1] +
-                                    data[2]*data[2] + data[3]*data[3]);
+                double n = norm();
                 if (n > 1e-10) {
                     return Vector4d(data[0]/n, data[1]/n, data[2]/n, data[3]/n);
                 }
-                return Vector4d(0, 0, 0, 0);
+                return Vector4d(1, 0, 0, 0);  // 返回单位四元数而非零四元数
+            }
+
+            // 共轭四元数: q* = w - xi - yj - zk
+            inline Vector4d conjugate() const {
+                return Vector4d(data[0], -data[1], -data[2], -data[3]);
+            }
+
+            // 逆四元数: q^(-1) = q* / |q|^2
+            inline Vector4d inverse() const {
+                double n2 = squaredNorm();
+                if (n2 > 1e-10) {
+                    return Vector4d(data[0]/n2, -data[1]/n2, -data[2]/n2, -data[3]/n2);
+                }
+                return Vector4d(1, 0, 0, 0);
+            }
+
+            // 四元数乘法 (Hamilton乘积)
+            inline Vector4d operator*(const Vector4d& other) const {
+                double w1 = data[0], x1 = data[1], y1 = data[2], z1 = data[3];
+                double w2 = other.data[0], x2 = other.data[1], y2 = other.data[2], z2 = other.data[3];
+
+                return Vector4d(
+                    w1*w2 - x1*x2 - y1*y2 - z1*z2,  // w
+                    w1*x2 + x1*w2 + y1*z2 - z1*y2,  // x
+                    w1*y2 - x1*z2 + y1*w2 + z1*x2,  // y
+                    w1*z2 + x1*y2 - y1*x2 + z1*w2   // z
+                );
+            }
+
+            // 标量乘法
+            inline Vector4d operator*(double scalar) const {
+                return Vector4d(data[0]*scalar, data[1]*scalar, data[2]*scalar, data[3]*scalar);
+            }
+
+            // 四元数加法
+            inline Vector4d operator+(const Vector4d& other) const {
+                return Vector4d(data[0]+other.data[0], data[1]+other.data[1],
+                               data[2]+other.data[2], data[3]+other.data[3]);
+            }
+
+            // 四元数减法
+            inline Vector4d operator-(const Vector4d& other) const {
+                return Vector4d(data[0]-other.data[0], data[1]-other.data[1],
+                               data[2]-other.data[2], data[3]-other.data[3]);
+            }
+
+            // 四元数点积
+            inline double dot(const Vector4d& other) const {
+                return data[0]*other.data[0] + data[1]*other.data[1] +
+                       data[2]*other.data[2] + data[3]*other.data[3];
+            }
+
+            // 判断是否为单位四元数
+            inline bool isUnit(double tol = 1e-6) const {
+                return std::abs(squaredNorm() - 1.0) < tol;
+            }
+
+            // 用四元数旋转向量 v: v' = q * v * q^(-1)
+            Vector3d rotate(const Vector3d& v) const;
+
+            // 转换为欧拉角 (ZYX顺序，返回roll, pitch, yaw)
+            Vector3d toEuler() const;
+
+            // 转换为轴角表示
+            void toAxisAngle(Vector3d& axis, double& angle) const;
+
+            // 输出流操作符
+            friend std::ostream& operator<<(std::ostream& os, const Vector4d& q) {
+                os << "(" << q[0] << ", " << q[1] << ", " << q[2] << ", " << q[3] << ")";
+                return os;
             }
         };
 
@@ -1015,14 +1123,50 @@ namespace SimTools {
         // 斜对称矩阵（用于叉乘）
         static Matrix3d SkewSymmetric(const Vector3d& v);
 
+        // ===== 四元数与旋转矩阵转换 =====
+
         // 四元数 -> 旋转矩阵
         static Matrix3d QuaternionToMatrix(const Vector4d& q);
+
+        // 旋转矩阵 -> 四元数
+        static Vector4d MatrixToQuaternion(const Matrix3d& R);
+
+        // ===== 欧拉角转换 =====
 
         // 旋转矩阵 -> 欧拉角
         static Vector3d MatrixToEuler(const Matrix3d& R);
 
         // 欧拉角 -> 旋转矩阵
         static Matrix3d EulerToMatrix(double roll, double pitch, double yaw);
+
+        // 欧拉角 -> 四元数
+        static Vector4d EulerToQuaternion(double roll, double pitch, double yaw);
+
+        // 四元数 -> 欧拉角
+        static Vector3d QuaternionToEuler(const Vector4d& q);
+
+        // ===== 轴角转换 =====
+
+        // 轴角 -> 四元数
+        static Vector4d AxisAngleToQuaternion(const Vector3d& axis, double angle);
+
+        // 四元数 -> 轴角
+        static void QuaternionToAxisAngle(const Vector4d& q, Vector3d& axis, double& angle);
+
+        // ===== 四元数运算 =====
+
+        // 四元数球面线性插值 (SLERP)
+        // t: 插值参数 [0, 1], t=0返回q0, t=1返回q1
+        static Vector4d Slerp(const Vector4d& q0, const Vector4d& q1, double t);
+
+        // 用四元数旋转向量
+        static Vector3d RotateVector(const Vector4d& q, const Vector3d& v);
+
+        // 四元数指数映射 (用于姿态微积分)
+        static Vector4d QuaternionExp(const Vector3d& v);
+
+        // 四元数对数映射 (用于姿态微积分)
+        static Vector3d QuaternionLog(const Vector4d& q);
     };
 }
 

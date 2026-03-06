@@ -75,9 +75,40 @@ int main() {
     auto air = Atmosphere::GetParameters(10000);  // 10km
     std::cout << "声速: " << air.sound_speed << " m/s" << std::endl;
 
+    // === 四元数姿态运算 ===
+    // 从欧拉角创建四元数 (弧度)
+    Vector4d q = Vector4d::FromEuler(0.1, 0.2, 0.3);
+
+    // 四元数乘法（姿态组合）
+    Vector4d q2 = Vector4d::FromAxisAngle(Vector3d(0, 0, 1), 0.5);
+    Vector4d q_combined = q * q2;
+
+    // 旋转向量
+    Vector3d v(1, 0, 0);
+    Vector3d v_rotated = q.rotate(v);
+
+    // SLERP 插值（姿态平滑过渡）
+    Vector4d q_interp = MatrixUtils::Slerp(q, q2, 0.5);
+
+    // 转换为欧拉角
+    Vector3d euler = q.toEuler();  // (roll, pitch, yaw)
+
     return 0;
 }
 ```
+
+### 四元数功能
+
+`MatrixUtils` 模块现已提供完整的四元数支持：
+
+| 功能 | 函数 |
+|------|------|
+| 创建四元数 | `Vector4d::Identity()`, `FromEuler()`, `FromAxisAngle()` |
+| 四元数运算 | `operator*`, `conjugate()`, `inverse()`, `dot()`, `normalized()` |
+| 旋转向量 | `q.rotate(v)` 或 `MatrixUtils::RotateVector(q, v)` |
+| 转换 | `toEuler()`, `toAxisAngle()`, `MatrixToQuaternion()` |
+| 插值 | `MatrixUtils::Slerp(q0, q1, t)` |
+| 微积分 | `MatrixUtils::QuaternionExp()`, `QuaternionLog()` |
 
 ---
 
