@@ -14,431 +14,246 @@
 #include <utility>
 
 // ============================================================
-// Eigen 库检测与兼容层
+// Eigen 库
 // ============================================================
 
-#ifdef USE_EIGEN
-    #include <Eigen/Dense>
-    namespace SimTools {
-        using Vector3d = Eigen::Vector3d;
-        using Matrix3d = Eigen::Matrix3d;
-        using VectorXd = Eigen::VectorXd;
-        using MatrixXd = Eigen::MatrixXd;
-        using Vector4d = Eigen::Vector4d;
+#include <Eigen/Dense>
+#include <Eigen/Geometry>
 
-        // 为 Eigen::Vector3d 添加友好的输出格式
-        inline std::ostream& operator<<(std::ostream& os, const Eigen::Vector3d& v) {
-            os << "(" << v[0] << ", " << v[1] << ", " << v[2] << ")";
-            return os;
-        }
-    }
-#else
-    // 如果没有 Eigen，使用标准库替代
-    #include <valarray>
-    namespace SimTools {
-        // 3D 向量类型
-        struct Vector3d {
-            double data[3];
+namespace SimTools {
+    using Vector3d = Eigen::Vector3d;
+    using Matrix3d = Eigen::Matrix3d;
+    using VectorXd = Eigen::VectorXd;
+    using MatrixXd = Eigen::MatrixXd;
 
-            Vector3d() : data{0, 0, 0} {}
-            Vector3d(double x, double y, double z) : data{x, y, z} {}
-            Vector3d(double val) : data{val, val, val} {}
+    // ============================================================
+    // Quaternion 类
+    // ============================================================
+    class Quaternion {
+        public:
+            // 默认构造：单位四元数
+            Quaternion() : q_(1.0, 0.0, 0.0, 0.0) {}
 
-            // 静态方法：创建零向量
-            static Vector3d Zero() {
-                return Vector3d(0, 0, 0);
+            // 从分量构造 (w, x, y, z)
+            Quaternion(double w, double x, double y, double z) : q_(w, x, y, z) {}
+
+            // 从 Eigen 四元数构造
+            explicit Quaternion(const Eigen::Quaterniond& eigen_q) : q_(eigen_q) {}
+
+            // 获取底层的 Eigen 四元数
+            const Eigen::Quaterniond& GetEigen() const { return q_; }
+            Eigen::Quaterniond& GetEigen() { return q_; }
+
+            // ============================================================
+            // 静态工厂方法
+            // ============================================================
+            static Quaternion Identity() {
+                return Quaternion();
             }
 
-            inline double& operator[](int i) { return data[i]; }
-            inline const double& operator[](int i) const { return data[i]; }
-
-            inline Vector3d operator-(const Vector3d& other) const {
-                return Vector3d(data[0] - other.data[0],
-                               data[1] - other.data[1],
-                               data[2] - other.data[2]);
+            static Quaternion FromEuler(double roll, double pitch, double yaw) {
+                Eigen::Quaterniond q =
+                    Eigen::AngleAxisd(yaw, Eigen::Vector3d::UnitZ()) *
+                    Eigen::AngleAxisd(pitch, Eigen::Vector3d::UnitY()) *
+                    Eigen::AngleAxisd(roll, Eigen::Vector3d::UnitX());
+                return Quaternion(q);
             }
 
-            inline Vector3d operator+(const Vector3d& other) const {
-                return Vector3d(data[0] + other.data[0],
-                               data[1] + other.data[1],
-                               data[2] + other.data[2]);
+            static Quaternion FromAxisAngle(const Vector3d& axis, double angle) {
+                return Quaternion(Eigen::Quaterniond(
+                    Eigen::AngleAxisd(angle, axis.normalized())
+                ));
             }
 
-            inline Vector3d operator*(double scalar) const {
-                return Vector3d(data[0] * scalar, data[1] * scalar, data[2] * scalar);
+            static Quaternion FromAxisAngle(const double axis[3], double angle) {
+                return FromAxisAngle(Vector3d(axis[0], axis[1], axis[2]), angle);
             }
 
-            inline Vector3d& operator*=(double scalar) {
-                data[0] *= scalar;
-                data[1] *= scalar;
-                data[2] *= scalar;
-                return *this;
+            static Quaternion FromRotationMatrix(const Matrix3d& R) {
+                return Quaternion(Eigen::Quaterniond(R));
             }
 
-            inline Vector3d operator/(double scalar) const {
-                return Vector3d(data[0] / scalar, data[1] / scalar, data[2] / scalar);
+            // ============================================================
+            // 转换方法
+            // ============================================================
+            Vector3d ToEuler() const {
+                Eigen::Vector3d euler = q_.toRotationMatrix().eulerAngles(2, 1, 0);
+                return Vector3d(euler[2], euler[1], euler[0]); // roll, pitch, yaw
             }
 
-            inline Vector3d& operator/=(double scalar) {
-                data[0] /= scalar;
-                data[1] /= scalar;
-                data[2] /= scalar;
-                return *this;
+            void ToEuler(double& roll, double& pitch, double& yaw) const {
+                Vector3d euler = ToEuler();
+                roll = euler[0];
+                pitch = euler[1];
+                yaw = euler[2];
             }
 
-            inline double dot(const Vector3d& other) const {
-                return data[0] * other.data[0] + data[1] * other.data[1] + data[2] * other.data[2];
+            Matrix3d ToRotationMatrix() const {
+                return q_.toRotationMatrix();
             }
 
-            inline Vector3d cross(const Vector3d& other) const {
-                return Vector3d(
-                    data[1] * other.data[2] - data[2] * other.data[1],
-                    data[2] * other.data[0] - data[0] * other.data[2],
-                    data[0] * other.data[1] - data[1] * other.data[0]
-                );
-            }
-
-            inline double norm() const {
-                return std::sqrt(data[0] * data[0] + data[1] * data[1] + data[2] * data[2]);
-            }
-
-            inline Vector3d normalized() const {
-                double n = norm();
-                if (n > 1e-10) {
-                    return Vector3d(data[0] / n, data[1] / n, data[2] / n);
+            void ToRotationMatrix(double matrix[3][3]) const {
+                Matrix3d R = ToRotationMatrix();
+                for (int i = 0; i < 3; ++i) {
+                    for (int j = 0; j < 3; ++j) {
+                        matrix[i][j] = R(i, j);
+                    }
                 }
-                return Vector3d(0, 0, 0);
             }
 
-            inline int size() const { return 3; }
-
-            inline double x() const { return data[0]; }
-            inline double y() const { return data[1]; }
-            inline double z() const { return data[2]; }
-
-            // 添加 transpose() 以兼容 Eigen 接口
-            inline Vector3d transpose() const {
-                return *this;
+            void ToAxisAngle(Vector3d& axis, double& angle) const {
+                Eigen::AngleAxisd aa(q_);
+                axis = Vector3d(aa.axis()[0], aa.axis()[1], aa.axis()[2]);
+                angle = aa.angle();
             }
 
-            // 添加 cwiseAbs() 以兼容 Eigen 接口
-            inline Vector3d cwiseAbs() const {
-                return Vector3d(std::abs(data[0]), std::abs(data[1]), std::abs(data[2]));
+            void ToAxisAngle(double axis[3], double& angle) const {
+                Vector3d ax;
+                ToAxisAngle(ax, angle);
+                axis[0] = ax[0];
+                axis[1] = ax[1];
+                axis[2] = ax[2];
             }
 
-            // 输出流操作符（用于 std::cout）
-            friend std::ostream& operator<<(std::ostream& os, const Vector3d& v) {
-                os << "(" << v[0] << ", " << v[1] << ", " << v[2] << ")";
+            // ============================================================
+            // 运算方法
+            // ============================================================
+            Quaternion Normalized() const {
+                return Quaternion(q_.normalized());
+            }
+
+            Quaternion Conjugate() const {
+                return Quaternion(q_.conjugate());
+            }
+
+            Quaternion Inverse() const {
+                return Quaternion(q_.inverse());
+            }
+
+            Quaternion operator*(const Quaternion& other) const {
+                return Quaternion(q_ * other.q_);
+            }
+
+            Quaternion operator*(double scalar) const {
+                return Quaternion(Eigen::Quaterniond(
+                    q_.w() * scalar, q_.x() * scalar,
+                    q_.y() * scalar, q_.z() * scalar
+                ));
+            }
+
+            Quaternion operator+(const Quaternion& other) const {
+                return Quaternion(Eigen::Quaterniond(
+                    q_.w() + other.q_.w(), q_.x() + other.q_.x(),
+                    q_.y() + other.q_.y(), q_.z() + other.q_.z()
+                ));
+            }
+
+            Quaternion operator-(const Quaternion& other) const {
+                return Quaternion(Eigen::Quaterniond(
+                    q_.w() - other.q_.w(), q_.x() - other.q_.x(),
+                    q_.y() - other.q_.y(), q_.z() - other.q_.z()
+                ));
+            }
+
+            // ============================================================
+            // 属性访问
+            // ============================================================
+            double W() const { return q_.w(); }
+            double X() const { return q_.x(); }
+            double Y() const { return q_.y(); }
+            double Z() const { return q_.z(); }
+
+            double& operator[](int i) {
+                switch (i) {
+                    case 0: return q_.w();
+                    case 1: return q_.x();
+                    case 2: return q_.y();
+                    case 3: return q_.z();
+                    default: return q_.w();
+                }
+            }
+
+            const double& operator[](int i) const {
+                switch (i) {
+                    case 0: return q_.w();
+                    case 1: return q_.x();
+                    case 2: return q_.y();
+                    case 3: return q_.z();
+                    default: return q_.w();
+                }
+            }
+
+            // ============================================================
+            // 计算方法
+            // ============================================================
+            double Norm() const { return q_.norm(); }
+            double SquaredNorm() const { return q_.squaredNorm(); }
+            double Dot(const Quaternion& other) const { return q_.dot(other.q_); }
+            bool IsUnit(double tol = 1e-6) const { return std::abs(SquaredNorm() - 1.0) < tol; }
+
+            // ============================================================
+            // 应用方法
+            // ============================================================
+            Vector3d Rotate(const Vector3d& v) const {
+                Eigen::Vector3d result = q_ * v;
+                return Vector3d(result[0], result[1], result[2]);
+            }
+
+            void RotateVector(double vx, double vy, double vz,
+                             double& rx, double& ry, double& rz) const {
+                Vector3d result = Rotate(Vector3d(vx, vy, vz));
+                rx = result[0];
+                ry = result[1];
+                rz = result[2];
+            }
+
+            // ============================================================
+            // 静态计算方法
+            // ============================================================
+            static Quaternion Slerp(const Quaternion& q0, const Quaternion& q1, double t) {
+                return Quaternion(q0.q_.slerp(t, q1.q_));
+            }
+
+            static Quaternion Exp(const Vector3d& v) {
+                double norm = v.norm();
+                if (norm < 1e-10) return Identity();
+                double sin_norm = std::sin(norm);
+                double cos_norm = std::cos(norm);
+                double scale = sin_norm / norm;
+                return Quaternion(cos_norm, v[0] * scale, v[1] * scale, v[2] * scale);
+            }
+
+            static Vector3d Log(const Quaternion& q) {
+                Eigen::Quaterniond qn = q.q_.normalized();
+                double w = qn.w();
+                double w_clamped = std::max(-1.0, std::min(1.0, w));
+                double theta = std::acos(w_clamped);
+                if (std::abs(w) >= 1.0) return Vector3d::Zero();
+                double sin_theta = std::sin(theta);
+                double scale = theta / sin_theta;
+                return Vector3d(qn.x() * scale, qn.y() * scale, qn.z() * scale);
+            }
+
+            // 输出
+            friend std::ostream& operator<<(std::ostream& os, const Quaternion& q) {
+                os << "(" << q.W() << ", " << q.X() << ", " << q.Y() << ", " << q.Z() << ")";
                 return os;
             }
+
+        private:
+            Eigen::Quaterniond q_;
         };
 
-        // 3x3 矩阵类型
-        struct Matrix3d {
-            double data[9];  // 行主序存储
+    // 类型别名
+    using Quaterniond = Quaternion;
+    using Vector4d = Quaternion;
 
-            Matrix3d() {
-                for (int i = 0; i < 9; i++) data[i] = 0;
-                // 单位矩阵
-                data[0] = data[4] = data[8] = 1.0;
-            }
-
-            // 静态方法：创建单位矩阵
-            static Matrix3d Identity() {
-                return Matrix3d();
-            }
-
-            inline double& operator()(int row, int col) {
-                return data[row * 3 + col];
-            }
-
-            inline const double& operator()(int row, int col) const {
-                return data[row * 3 + col];
-            }
-
-            inline Matrix3d operator*(const Matrix3d& other) const {
-                Matrix3d result;
-                for (int i = 0; i < 3; i++) {
-                    for (int j = 0; j < 3; j++) {
-                        result(i, j) = 0;
-                        for (int k = 0; k < 3; k++) {
-                            result(i, j) += (*this)(i, k) * other(k, j);
-                        }
-                    }
-                }
-                return result;
-            }
-
-            inline Vector3d operator*(const Vector3d& vec) const {
-                return Vector3d(
-                    data[0] * vec[0] + data[1] * vec[1] + data[2] * vec[2],
-                    data[3] * vec[0] + data[4] * vec[1] + data[5] * vec[2],
-                    data[6] * vec[0] + data[7] * vec[1] + data[8] * vec[2]
-                );
-            }
-
-            inline Matrix3d transpose() const {
-                Matrix3d result;
-                for (int i = 0; i < 3; i++) {
-                    for (int j = 0; j < 3; j++) {
-                        result(i, j) = (*this)(j, i);
-                    }
-                }
-                return result;
-            }
-
-            inline Matrix3d operator+(const Matrix3d& other) const {
-                Matrix3d result;
-                for (int i = 0; i < 9; i++) {
-                    result.data[i] = data[i] + other.data[i];
-                }
-                return result;
-            }
-
-            inline double trace() const {
-                return data[0] + data[4] + data[8];
-            }
-
-            inline double norm() const {
-                double sum = 0;
-                for (int i = 0; i < 9; i++) {
-                    sum += data[i] * data[i];
-                }
-                return std::sqrt(sum);
-            }
-        };
-
-        // 动态大小向量（简化版）
-        struct VectorXd : public std::vector<double> {
-            using std::vector<double>::vector;
-
-            inline VectorXd operator-(const VectorXd& other) const {
-                VectorXd result(this->size());
-                for (size_t i = 0; i < static_cast<size_t>(this->size()); i++) {
-                    result[i] = (*this)[i] - other[i];
-                }
-                return result;
-            }
-
-            inline VectorXd operator+(const VectorXd& other) const {
-                VectorXd result(this->size());
-                for (size_t i = 0; i < static_cast<size_t>(this->size()); i++) {
-                    result[i] = (*this)[i] + other[i];
-                }
-                return result;
-            }
-
-            inline VectorXd operator*(double scalar) const {
-                VectorXd result(this->size());
-                for (size_t i = 0; i < static_cast<size_t>(this->size()); i++) {
-                    result[i] = (*this)[i] * scalar;
-                }
-                return result;
-            }
-
-            inline VectorXd operator/(double scalar) const {
-                VectorXd result(this->size());
-                for (size_t i = 0; i < static_cast<size_t>(this->size()); i++) {
-                    result[i] = (*this)[i] / scalar;
-                }
-                return result;
-            }
-
-            inline VectorXd& operator*=(double scalar) {
-                for (size_t i = 0; i < static_cast<size_t>(this->size()); i++) {
-                    (*this)[i] *= scalar;
-                }
-                return *this;
-            }
-
-            inline VectorXd& operator+=(const VectorXd& other) {
-                for (size_t i = 0; i < static_cast<size_t>(this->size()); i++) {
-                    (*this)[i] += other[i];
-                }
-                return *this;
-            }
-
-            inline double norm() const {
-                double sum = 0;
-                for (const auto& val : *this) {
-                    sum += val * val;
-                }
-                return std::sqrt(sum);
-            }
-
-            inline int size() const {
-                return static_cast<int>(std::vector<double>::size());
-            }
-
-            // 返回每个元素的绝对值
-            inline VectorXd cwiseAbs() const {
-                VectorXd result(this->size());
-                for (size_t i = 0; i < static_cast<size_t>(this->size()); i++) {
-                    result[i] = std::abs((*this)[i]);
-                }
-                return result;
-            }
-
-            // 返回最大值系数
-            inline double maxCoeff() const {
-                if (this->empty()) return 0.0;
-                double maxVal = (*this)[0];
-                for (size_t i = 1; i < static_cast<size_t>(this->size()); i++) {
-                    if ((*this)[i] > maxVal) {
-                        maxVal = (*this)[i];
-                    }
-                }
-                return maxVal;
-            }
-        };
-
-        // 全局运算符：double * VectorXd
-        inline VectorXd operator*(double scalar, const VectorXd& vec) {
-            return vec * scalar;
-        }
-
-        // 4D 向量（四元数）
-        // 四元数表示：q = w + xi + yj + zk (w为标量部分, x,y,z为向量部分)
-        struct Vector4d {
-            double data[4];
-
-            Vector4d() : data{0, 0, 0, 0} {}
-            Vector4d(double w, double x, double y, double z) : data{w, x, y, z} {}
-
-            // 静态方法：创建单位四元数
-            static Vector4d Identity() {
-                return Vector4d(1, 0, 0, 0);
-            }
-
-            // 静态方法：从轴角创建四元数
-            // axis: 旋转轴（单位向量）, angle: 旋转角度（弧度）
-            static Vector4d FromAxisAngle(const Vector3d& axis, double angle);
-
-            // 静态方法：从欧拉角创建四元数 (ZYX顺序，即yaw-pitch-roll)
-            static Vector4d FromEuler(double roll, double pitch, double yaw);
-
-            // 元素访问
-            inline double& operator[](int i) { return data[i]; }
-            inline const double& operator[](int i) const { return data[i]; }
-
-            // 标量部分 (w)
-            inline double w() const { return data[0]; }
-            inline void setW(double val) { data[0] = val; }
-
-            // 向量部分 (x, y, z)
-            inline double x() const { return data[1]; }
-            inline double y() const { return data[2]; }
-            inline double z() const { return data[3]; }
-            inline void setX(double val) { data[1] = val; }
-            inline void setY(double val) { data[2] = val; }
-            inline void setZ(double val) { data[3] = val; }
-
-            // 模/范数
-            inline double norm() const {
-                return std::sqrt(data[0]*data[0] + data[1]*data[1] +
-                                data[2]*data[2] + data[3]*data[3]);
-            }
-
-            // 模的平方
-            inline double squaredNorm() const {
-                return data[0]*data[0] + data[1]*data[1] +
-                       data[2]*data[2] + data[3]*data[3];
-            }
-
-            // 归一化
-            inline Vector4d normalized() const {
-                double n = norm();
-                if (n > 1e-10) {
-                    return Vector4d(data[0]/n, data[1]/n, data[2]/n, data[3]/n);
-                }
-                return Vector4d(1, 0, 0, 0);  // 返回单位四元数而非零四元数
-            }
-
-            // 共轭四元数: q* = w - xi - yj - zk
-            inline Vector4d conjugate() const {
-                return Vector4d(data[0], -data[1], -data[2], -data[3]);
-            }
-
-            // 逆四元数: q^(-1) = q* / |q|^2
-            inline Vector4d inverse() const {
-                double n2 = squaredNorm();
-                if (n2 > 1e-10) {
-                    return Vector4d(data[0]/n2, -data[1]/n2, -data[2]/n2, -data[3]/n2);
-                }
-                return Vector4d(1, 0, 0, 0);
-            }
-
-            // 四元数乘法 (Hamilton乘积)
-            inline Vector4d operator*(const Vector4d& other) const {
-                double w1 = data[0], x1 = data[1], y1 = data[2], z1 = data[3];
-                double w2 = other.data[0], x2 = other.data[1], y2 = other.data[2], z2 = other.data[3];
-
-                return Vector4d(
-                    w1*w2 - x1*x2 - y1*y2 - z1*z2,  // w
-                    w1*x2 + x1*w2 + y1*z2 - z1*y2,  // x
-                    w1*y2 - x1*z2 + y1*w2 + z1*x2,  // y
-                    w1*z2 + x1*y2 - y1*x2 + z1*w2   // z
-                );
-            }
-
-            // 标量乘法
-            inline Vector4d operator*(double scalar) const {
-                return Vector4d(data[0]*scalar, data[1]*scalar, data[2]*scalar, data[3]*scalar);
-            }
-
-            // 四元数加法
-            inline Vector4d operator+(const Vector4d& other) const {
-                return Vector4d(data[0]+other.data[0], data[1]+other.data[1],
-                               data[2]+other.data[2], data[3]+other.data[3]);
-            }
-
-            // 四元数减法
-            inline Vector4d operator-(const Vector4d& other) const {
-                return Vector4d(data[0]-other.data[0], data[1]-other.data[1],
-                               data[2]-other.data[2], data[3]-other.data[3]);
-            }
-
-            // 四元数点积
-            inline double dot(const Vector4d& other) const {
-                return data[0]*other.data[0] + data[1]*other.data[1] +
-                       data[2]*other.data[2] + data[3]*other.data[3];
-            }
-
-            // 判断是否为单位四元数
-            inline bool isUnit(double tol = 1e-6) const {
-                return std::abs(squaredNorm() - 1.0) < tol;
-            }
-
-            // 用四元数旋转向量 v: v' = q * v * q^(-1)
-            Vector3d rotate(const Vector3d& v) const;
-
-            // 转换为欧拉角 (ZYX顺序，返回roll, pitch, yaw)
-            Vector3d toEuler() const;
-
-            // 转换为轴角表示
-            void toAxisAngle(Vector3d& axis, double& angle) const;
-
-            // 输出流操作符
-            friend std::ostream& operator<<(std::ostream& os, const Vector4d& q) {
-                os << "(" << q[0] << ", " << q[1] << ", " << q[2] << ", " << q[3] << ")";
-                return os;
-            }
-        };
-
-        // 动态矩阵（简化版，仅用于兼容）
-        struct MatrixXd {
-            std::vector<std::vector<double>> data;
-
-            MatrixXd(int rows, int cols) : data(rows, std::vector<double>(cols)) {}
-
-            inline int rows() const { return static_cast<int>(data.size()); }
-            inline int cols() const { return data.empty() ? 0 : static_cast<int>(data[0].size()); }
-
-            inline double& operator()(int row, int col) { return data[row][col]; }
-            inline const double& operator()(int row, int col) const { return data[row][col]; }
-        };
+    // 为 Eigen::Vector3d 添加友好的输出格式
+    inline std::ostream& operator<<(std::ostream& os, const Eigen::Vector3d& v) {
+        os << "(" << v[0] << ", " << v[1] << ", " << v[2] << ")";
+        return os;
     }
-#endif
+}
 
 // ============================================================
 // 平台导出宏定义
@@ -1126,10 +941,10 @@ namespace SimTools {
         // ===== 四元数与旋转矩阵转换 =====
 
         // 四元数 -> 旋转矩阵
-        static Matrix3d QuaternionToMatrix(const Vector4d& q);
+        static Matrix3d QuaternionToMatrix(const Quaterniond& q);
 
         // 旋转矩阵 -> 四元数
-        static Vector4d MatrixToQuaternion(const Matrix3d& R);
+        static Quaterniond MatrixToQuaternion(const Matrix3d& R);
 
         // ===== 欧拉角转换 =====
 
@@ -1140,33 +955,33 @@ namespace SimTools {
         static Matrix3d EulerToMatrix(double roll, double pitch, double yaw);
 
         // 欧拉角 -> 四元数
-        static Vector4d EulerToQuaternion(double roll, double pitch, double yaw);
+        static Quaterniond EulerToQuaternion(double roll, double pitch, double yaw);
 
         // 四元数 -> 欧拉角
-        static Vector3d QuaternionToEuler(const Vector4d& q);
+        static Vector3d QuaternionToEuler(const Quaterniond& q);
 
         // ===== 轴角转换 =====
 
         // 轴角 -> 四元数
-        static Vector4d AxisAngleToQuaternion(const Vector3d& axis, double angle);
+        static Quaterniond AxisAngleToQuaternion(const Vector3d& axis, double angle);
 
         // 四元数 -> 轴角
-        static void QuaternionToAxisAngle(const Vector4d& q, Vector3d& axis, double& angle);
+        static void QuaternionToAxisAngle(const Quaterniond& q, Vector3d& axis, double& angle);
 
         // ===== 四元数运算 =====
 
         // 四元数球面线性插值 (SLERP)
         // t: 插值参数 [0, 1], t=0返回q0, t=1返回q1
-        static Vector4d Slerp(const Vector4d& q0, const Vector4d& q1, double t);
+        static Quaterniond Slerp(const Quaterniond& q0, const Quaterniond& q1, double t);
 
         // 用四元数旋转向量
-        static Vector3d RotateVector(const Vector4d& q, const Vector3d& v);
+        static Vector3d RotateVector(const Quaterniond& q, const Vector3d& v);
 
         // 四元数指数映射 (用于姿态微积分)
-        static Vector4d QuaternionExp(const Vector3d& v);
+        static Quaterniond QuaternionExp(const Vector3d& v);
 
         // 四元数对数映射 (用于姿态微积分)
-        static Vector3d QuaternionLog(const Vector4d& q);
+        static Vector3d QuaternionLog(const Quaterniond& q);
     };
 }
 

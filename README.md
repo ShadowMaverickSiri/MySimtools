@@ -5,6 +5,7 @@
 [![License](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![C++](https://img.shields.io/badge/C++-14-blue.svg)]()
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux%20%7C%20macOS-lightgrey.svg)]()
+[![Eigen](https://img.shields.io/badge/Eigen-3.3%2B-brightgreen.svg)]()
 
 ---
 
@@ -24,17 +25,43 @@
 ## ✨ Features
 
 - 🎯 **Pure Utility Library** - All static functions, stateless, easy to integrate
-- 📦 **Modular Design** - 14 independent modules
+- 📦 **Modular Design** - 12 independent modules
 - 🔌 **Cross-Platform** - Windows/Linux/macOS
-- ⚡ **High Performance** - Eigen3 acceleration or pure C++ standard library
-- 🛠️ **Zero Dependencies** - Auto-fallback to C++ standard library
+- ⚡ **High Performance** - Powered by Eigen3 for optimized matrix and quaternion operations
+- 📐 **Quaternion Support** - Complete quaternion math with Eigen backend
 - 📚 **Complete Documentation** - Chinese documentation with examples
 
 ---
 
 ## 🚀 Quick Start
 
-### Windows (Visual Studio 2019)
+### Prerequisites
+
+- **C++ Compiler**: C++14 or later
+- **Eigen3**: Version 3.3 or higher (required)
+
+#### Installing Eigen3
+
+**Windows (vcpkg):**
+```bash
+vcpkg install eigen3:x64-windows
+```
+
+**Linux:**
+```bash
+sudo apt-get install libeigen3-dev
+```
+
+**macOS:**
+```bash
+brew install eigen
+```
+
+Or set `EIGEN_ROOT` environment variable to your Eigen installation path.
+
+### Build
+
+#### Windows (Visual Studio 2019)
 
 ```bash
 # 1. Generate project
@@ -45,14 +72,13 @@ cmake -G "Visual Studio 16 2019" -A x64 ..
 # 3. Build and Run SimTools_test
 ```
 
-### Linux/macOS (GCC/Clang)
+#### Linux/macOS (GCC/Clang)
 
 ```bash
-# 1. Build
+mkdir build && cd build
+cmake ..
 make
-
-# 2. Run test
-make run
+./SimTools_test
 ```
 
 ---
@@ -61,20 +87,31 @@ make run
 
 | Module | Description |
 |--------|-------------|
-| **Math** | Basic math utilities |
-| **Interpolation** | Interpolation algorithms |
-| **Coordinate** | GPS ↔ ECEF ↔ NED conversion |
-| **Geodesy** | Geodesy calculations |
-| **Atmosphere** | Atmosphere parameters |
-| **Random** | Random number generation |
-| **FileIO** | File I/O utilities |
-| **Numerical** | Numerical computation |
-| **Geometry** | Geometry calculations |
-| **Time** | Time utilities |
-| **Units** | Unit conversion |
-| **MatrixUtils** | Matrix operations |
-| **Simulation** | Simulation utilities |
-| **Version** | Version information |
+| **Math** | Basic math utilities (sign, clamp, angle regulation) |
+| **Interpolation** | Linear, Lagrange, cubic spline interpolation |
+| **Coordinate** | GPS ↔ ECEF ↔ NED coordinate conversions |
+| **Geodesy** | Great circle, Haversine, Vincenty calculations |
+| **Atmosphere** | ISA atmosphere model (pressure, density, temperature) |
+| **Random** | Uniform and normal distribution generators |
+| **FileIO** | File read/write utilities |
+| **Numerical** | Runge-Kutta integration, root finding, derivatives |
+| **Geometry** | Point-in-polygon, distance calculations |
+| **Time** | GPS time, Unix time conversions |
+| **Units** | Unit conversions (knots, feet, nautical miles, etc.) |
+| **MatrixUtils** | Matrix operations and quaternion utilities |
+
+---
+
+## 🔧 Recent Changes
+
+### 2025-03-30
+
+- ✨ **Quaternion module refactored** - Now using pure Eigen backend
+- 🗑️ **Removed legacy code** - Non-Eigen quaternion implementation removed
+- 📝 **Simplified API** - Single, unified `Quaternion` class
+- 🔧 **Eigen3 now required** - Minimum version 3.3
+- 📦 **Removed redundant file** - `SimTools_Quaternion.h` merged into main header
+- 🎯 **Cleaner codebase** - ~640 lines of redundant code removed
 
 ---
 
@@ -84,7 +121,7 @@ make run
   - MSVC 19.20+ (Visual Studio 2019)
   - GCC 7.0+
   - Clang 5.0+
-- **Optional**: Eigen3 3.3+ (for performance)
+- **Required**: Eigen3 3.3+ (for matrix and quaternion operations)
 
 ---
 

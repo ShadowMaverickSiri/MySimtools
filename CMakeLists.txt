@@ -6,6 +6,8 @@ cmake_minimum_required(VERSION 3.10)
 project(SimTools VERSION 2.0.0 LANGUAGES CXX)
 
 # 设置 C++ 标准
+# 注意：Eigen 3.3.x 与 C++17 存在兼容性问题，需要使用 C++14
+# 如需使用 C++17，请升级到 Eigen 3.4+
 set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
@@ -20,7 +22,7 @@ else()
 endif()
 
 # ============================================================
-# 查找依赖库 - Eigen3（可选）
+# 查找依赖库 - Eigen3（必需）
 # ============================================================
 
 # 检查环境变量 EIGEN_ROOT
@@ -31,12 +33,11 @@ if(NOT DEFINED EIGEN_ROOT)
     endif()
 endif()
 
-# 尝试查找 Eigen3（非必需）
+# 尝试查找 Eigen3
 find_package(Eigen3 3.3 QUIET NO_MODULE)
 
 if(EIGEN3_FOUND)
     message(STATUS "Eigen3 found: ${EIGEN3_INCLUDE_DIR}")
-    set(USE_EIGEN ON)
 else()
     message(STATUS "Eigen3 not found via find_package, checking manually...")
 
@@ -48,16 +49,13 @@ else()
     if(EIGEN_ROOT AND EXISTS "${EIGEN_ROOT}")
         if(EXISTS "${EIGEN_ROOT}/Eigen/Dense")
             set(EIGEN3_INCLUDE_DIR "${EIGEN_ROOT}")
-            set(USE_EIGEN ON)
             message(STATUS "Using Eigen3 from EIGEN_ROOT: ${EIGEN_ROOT}")
         else()
-            message(WARNING "EIGEN_ROOT is set but Eigen/Dense not found at ${EIGEN_ROOT}")
+            message(FATAL_ERROR "EIGEN_ROOT is set but Eigen/Dense not found at ${EIGEN_ROOT}")
         endif()
-    endif()
-
-    if(NOT USE_EIGEN)
-        message(STATUS "Eigen3 not found, using C++ standard library implementation")
-        set(USE_EIGEN OFF)
+    else()
+        message(FATAL_ERROR "Eigen3 is required but not found. "
+                            "Please install Eigen3 or set EIGEN_ROOT environment variable.")
     endif()
 endif()
 
@@ -84,18 +82,11 @@ set(SIMTOOLS_SOURCES
 add_library(SimTools_static STATIC ${SIMTOOLS_SOURCES})
 target_include_directories(SimTools_static PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}
+    ${EIGEN3_INCLUDE_DIR}
 )
 target_compile_features(SimTools_static PUBLIC cxx_std_14)
 target_compile_definitions(SimTools_static PUBLIC SIMTOOLS_STATIC)
-
-# 如果使用 Eigen，添加包含目录和定义
-if(USE_EIGEN)
-    target_include_directories(SimTools_static PUBLIC ${EIGEN3_INCLUDE_DIR})
-    target_compile_definitions(SimTools_static PRIVATE USE_EIGEN)
-    message(STATUS "SimTools will use Eigen3 library")
-else()
-    message(STATUS "SimTools will use C++ standard library")
-endif()
+message(STATUS "SimTools will use Eigen3 library")
 
 # 创建动态库（可选）
 option(BUILD_SHARED_LIBS "Build shared libraries" OFF)
@@ -103,14 +94,10 @@ if(BUILD_SHARED_LIBS)
     add_library(SimTools_shared SHARED ${SIMTOOLS_SOURCES})
     target_include_directories(SimTools_shared PUBLIC
         ${CMAKE_CURRENT_SOURCE_DIR}
+        ${EIGEN3_INCLUDE_DIR}
     )
     target_compile_features(SimTools_shared PUBLIC cxx_std_14)
     target_compile_definitions(SimTools_shared PRIVATE SIMTOOLS_EXPORTS)
-
-    if(USE_EIGEN)
-        target_include_directories(SimTools_shared PUBLIC ${EIGEN3_INCLUDE_DIR})
-        target_compile_definitions(SimTools_shared PRIVATE USE_EIGEN)
-    endif()
 endif()
 
 # 别名：默认使用静态库
@@ -126,13 +113,10 @@ if(BUILD_TESTING)
     add_executable(SimTools_test SimTools_test.cpp)
     target_link_libraries(SimTools_test PRIVATE SimTools_static)
     target_compile_definitions(SimTools_test PRIVATE SIMTOOLS_STATIC)
-    target_include_directories(SimTools_test PRIVATE ${CMAKE_CURRENT_SOURCE_DIR})
-
-    # 如果使用 Eigen，添加定义和包含目录
-    if(USE_EIGEN)
-        target_compile_definitions(SimTools_test PRIVATE USE_EIGEN)
-        target_include_directories(SimTools_test PRIVATE ${EIGEN3_INCLUDE_DIR})
-    endif()
+    target_include_directories(SimTools_test PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}
+        ${EIGEN3_INCLUDE_DIR}
+    )
 
     # 设置为启动项目（Visual Studio）
     set_target_properties(SimTools_test PROPERTIES
