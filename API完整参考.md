@@ -1,11 +1,14 @@
 # SimTools v2.0 - 函数功能说明
 
-本文档详细说明 SimTools v2.0 库中所有功能函数的用途、输入输出格式及使用方法。
+本文档以 `SimTools_v2.h` 的公开声明为准，说明 SimTools v2.0 库的公开类型、常量、函数和类接口。
+
+除非另有说明，角度单位为弧度；GPS 经纬度相关接口使用度，高度和距离使用米。所有名称均位于 `SimTools` 命名空间中。
 
 ---
 
 ## 目录
 
+0. [基础类型、常量与四元数](#0-基础类型常量与四元数)
 1. [数学工具模块 (Math)](#1-数学工具模块-math)
 2. [插值算法模块 (Interpolation)](#2-插值算法模块-interpolation)
 3. [坐标转换模块 (Coordinate)](#3-坐标转换模块-coordinate)
@@ -20,6 +23,112 @@
 12. [矩阵运算模块 (MatrixUtils)](#12-矩阵运算模块-matrixutils)
 13. [仿真实用工具模块 (Simulation)](#13-仿真实用工具模块-simulation)
 14. [版本信息模块 (Version)](#14-版本信息模块-version)
+
+---
+
+## 0. 基础类型、常量与四元数
+
+### 0.1 公共类型别名
+
+| 名称 | 实际类型 | 说明 |
+|------|---------|------|
+| `Vector3d` | `Eigen::Vector3d` | 三维双精度向量 |
+| `Matrix3d` | `Eigen::Matrix3d` | 3×3 双精度矩阵 |
+| `VectorXd` | `Eigen::VectorXd` | 动态长度双精度向量 |
+| `MatrixXd` | `Eigen::MatrixXd` | 动态大小双精度矩阵 |
+| `Quaterniond` | `Quaternion` | 四元数类型别名 |
+| `Vector4d` | `Quaternion` | 兼容旧接口的别名；当前并非 Eigen 四维向量 |
+
+### 0.2 `Constants` 常量
+
+| 常量 | 值/含义 |
+|------|---------|
+| `PI` | π |
+| `RAD_TO_DEG` / `DEG_TO_RAD` | 弧度与角度换算系数 |
+| `EARTH_SEMIMAJOR` | CGCS2000 长半轴，6378137.0 m |
+| `EARTH_SEMIMINOR` | CGCS2000 短半轴，6356752.3141 m |
+| `EARTH_FLATTENING` | CGCS2000 扁率，1/298.257222101 |
+| `ECCENTRICITY_FIRST` | 第一偏心率 |
+| `ECCENTRICITY_SECOND` | 第二偏心率 |
+| `EPSILON` | 通用数值阈值，1e-10 |
+| `ITERATION_TOL` | 迭代收敛阈值，1e-10 |
+| `GRAVITY_SEA_LEVEL` | 海平面标准重力加速度，9.80665 m/s² |
+| `GAS_CONSTANT_AIR` | 空气气体常数，287.05287 J/(kg·K) |
+| `STANDARD_PRESSURE` | 标准气压，101325 Pa |
+| `STANDARD_TEMPERATURE` | 标准温度，288.15 K |
+| `STANDARD_DENSITY` | 标准密度，1.225 kg/m³ |
+
+### 0.3 `Quaternion` 类
+
+四元数分量顺序统一为 `(w, x, y, z)`。`FromEuler`、`ToEuler` 及相关矩阵工具使用 `(roll, pitch, yaw)`，组合顺序为 `Rz(yaw) * Ry(pitch) * Rx(roll)`。
+
+#### 构造与底层对象
+
+| 接口 | 返回/作用 | 说明 |
+|------|-----------|------|
+| `Quaternion()` | `Quaternion` | 构造单位四元数 `(1,0,0,0)` |
+| `Quaternion(double w, double x, double y, double z)` | `Quaternion` | 从四个分量构造 |
+| `explicit Quaternion(const Eigen::Quaterniond& eigen_q)` | `Quaternion` | 从 Eigen 四元数构造 |
+| `GetEigen() const` | `const Eigen::Quaterniond&` | 只读访问底层对象 |
+| `GetEigen()` | `Eigen::Quaterniond&` | 可写访问底层对象；修改后需自行保证归一化 |
+
+#### 静态工厂
+
+| 接口 | 返回 | 说明 |
+|------|------|------|
+| `Identity()` | `Quaternion` | 单位四元数 |
+| `FromEuler(double roll, double pitch, double yaw)` | `Quaternion` | 从欧拉角构造，单位为弧度 |
+| `FromAxisAngle(const Vector3d& axis, double angle)` | `Quaternion` | 从轴角构造，轴会被归一化 |
+| `FromAxisAngle(const double axis[3], double angle)` | `Quaternion` | C 数组版本 |
+| `FromRotationMatrix(const Matrix3d& R)` | `Quaternion` | 从旋转矩阵构造 |
+
+#### 格式转换
+
+| 接口 | 返回/输出 | 说明 |
+|------|-----------|------|
+| `ToEuler() const` | `Vector3d` | 返回 `(roll,pitch,yaw)`，单位为弧度 |
+| `ToEuler(double& roll, double& pitch, double& yaw) const` | 引用参数 | 欧拉角引用输出版本 |
+| `ToRotationMatrix() const` | `Matrix3d` | 返回 3×3 旋转矩阵 |
+| `ToRotationMatrix(double matrix[3][3]) const` | 数组参数 | C 数组输出版本 |
+| `ToAxisAngle(Vector3d& axis, double& angle) const` | 引用参数 | 返回旋转轴和弧度角 |
+| `ToAxisAngle(double axis[3], double& angle) const` | 数组/引用参数 | C 数组版本 |
+
+#### 运算、访问与判断
+
+| 接口 | 返回 | 说明 |
+|------|------|------|
+| `Normalized() const` | `Quaternion` | 返回归一化副本 |
+| `Conjugate() const` | `Quaternion` | 返回共轭 |
+| `Inverse() const` | `Quaternion` | 返回逆四元数 |
+| `operator*(const Quaternion& other) const` | `Quaternion` | 四元数乘法/旋转组合 |
+| `operator*(double scalar) const` | `Quaternion` | 每个分量乘标量 |
+| `operator+(const Quaternion& other) const` | `Quaternion` | 分量相加 |
+| `operator-(const Quaternion& other) const` | `Quaternion` | 分量相减 |
+| `W()`, `X()`, `Y()`, `Z()` | `double` | 读取对应分量 |
+| `operator[](int i)` | `double&` 或 `const double&` | 索引 0..3 对应 w,x,y,z；越界时源码当前返回 w |
+| `Norm() const` | `double` | 四元数范数 |
+| `SquaredNorm() const` | `double` | 范数平方 |
+| `Dot(const Quaternion& other) const` | `double` | 点积 |
+| `IsUnit(double tol = 1e-6) const` | `bool` | 判断范数平方与 1 的差是否小于容差 |
+| `operator<<` | `std::ostream&` | 输出 `(w, x, y, z)` |
+
+#### 旋转、插值与指数映射
+
+| 接口 | 返回/输出 | 说明 |
+|------|-----------|------|
+| `Rotate(const Vector3d& v) const` | `Vector3d` | 使用四元数旋转向量 |
+| `RotateVector(double vx, double vy, double vz, double& rx, double& ry, double& rz) const` | 引用参数 | 标量参数版本 |
+| `Slerp(const Quaternion& q0, const Quaternion& q1, double t)` | `Quaternion` | 球面线性插值；通常 `t` 取 `[0,1]` |
+| `Exp(const Vector3d& v)` | `Quaternion` | 纯虚四元数的指数映射 |
+| `Log(const Quaternion& q)` | `Vector3d` | 归一化四元数的对数映射 |
+
+示例：
+
+```cpp
+Quaterniond q = Quaterniond::FromEuler(0.1, 0.2, 0.3);
+Vector3d rotated = q.Rotate(Vector3d(1.0, 0.0, 0.0));
+Vector3d euler = q.ToEuler();
+```
 
 ---
 
@@ -293,6 +402,16 @@
 
 ## 5. 大气参数模块 (Atmosphere)
 
+### `Atmosphere::Parameters` 结构体
+
+| 字段 | 类型 | 单位 |
+|------|------|------|
+| `pressure` | `double` | Pa |
+| `density` | `double` | kg/m³ |
+| `gravity` | `double` | m/s² |
+| `sound_speed` | `double` | m/s |
+| `temperature` | `double` | K |
+
 ### 5.1 GetParameters
 - **功能**：获取指定高度的完整大气参数
 - **输入**：`double height_meters` - 高度（米）
@@ -417,19 +536,19 @@
 
 ### 7.3 ReadColumn
 - **功能**：读取单列数据
-- **输入**：`const std::string& filename, int column_index` - 文件名、列索引（默认0）
+- **输入**：`const std::string& filename, int column_index = 0` - 文件名、零基列索引
 - **输出**：`std::vector<double>` - 数据列
 - **用法**：`vector<double> col = FileIO::ReadColumn("data.txt", 0);`
 
 ### 7.4 WriteMatrix
 - **功能**：将矩阵写入文件
-- **输入**：`const std::string& filename, const MatrixXd& matrix, bool scientific, int precision`
+- **输入**：`const std::string& filename, const MatrixXd& matrix, bool scientific = false, int precision = 6`
 - **输出**：`bool` - 成功返回true
 - **用法**：`FileIO::WriteMatrix("out.txt", matrix, false, 6);`
 
 ### 7.5 WriteVector
 - **功能**：将vector写入文件
-- **输入**：`const std::string& filename, const std::vector<double>& data, bool scientific, int precision`
+- **输入**：`const std::string& filename, const std::vector<double>& data, bool scientific = false, int precision = 6`
 - **输出**：`bool` - 成功返回true
 - **用法**：`FileIO::WriteVector("out.txt", data);`
 
@@ -453,7 +572,7 @@
 
 ### 7.9 ToString (double)
 - **功能**：浮点数转字符串
-- **输入**：`double value, int precision` - 数值、精度
+- **输入**：`double value, int precision = 6` - 数值、精度
 - **输出**：`std::string` - 字符串
 - **用法**：`string s = FileIO::ToString(3.14159, 4);`
 
@@ -467,6 +586,12 @@
 
 ## 8. 数值计算模块 (Numerical)
 
+微分方程函数类型定义为：
+
+```cpp
+using OdeFunction = std::function<VectorXd(double, const VectorXd&)>;
+```
+
 ### 8.1 RungeKutta4
 - **功能**：四阶龙格-库塔数值积分
 - **输入**：`const OdeFunction& f, double t0, const VectorXd& y0, double h, int steps` - 微分方程、初始时间、初始状态、步长、步数
@@ -475,31 +600,35 @@
 
 ### 8.2 RungeKutta45
 - **功能**：自适应步长龙格-库塔积分
-- **输入**：`const OdeFunction& f, double t0, const VectorXd& y0, double t_end, double tolerance`
+- **输入**：`const OdeFunction& f, double t0, const VectorXd& y0, double t_end, double tolerance = 1e-6`
 - **输出**：`VectorXd` - 积分结果
 - **用法**：`VectorXd y = Numerical::RungeKutta45(f, t0, y0, t_end, 1e-6);`
 
 ### 8.3 Bisection
 - **功能**：二分法求根
-- **输入**：`const std::function<double(double)>& f, double a, double b, double tol`
+- **输入**：`const std::function<double(double)>& f, double a, double b, double tol = 1e-10`
 - **输出**：`double` - 根
 - **用法**：`double root = Numerical::Bisection(f, 0.0, 5.0);`
 
 ### 8.4 Newton
 - **功能**：牛顿法求根
-- **输入**：`const std::function<double(double)>& f, const std::function<double(double)>& df, double x0, double tol, int max_iter`
+- **输入**：`const std::function<double(double)>& f, const std::function<double(double)>& df, double x0, double tol = 1e-10, int max_iter = 100`
 - **输出**：`double` - 根
 - **用法**：`double root = Numerical::Newton(f, df, 3.0);`
 
 ### 8.5 Derivative
 - **功能**：中心差分求导数
-- **输入**：`const std::function<double(double)>& f, double x, double h` - 函数、点、步长
+- **输入**：`const std::function<double(double)>& f, double x, double h = 1e-6` - 函数、点、步长
 - **输出**：`double` - 导数
 - **用法**：`double deriv = Numerical::Derivative(f, 2.0);`
 
 ---
 
 ## 9. 几何计算模块 (Geometry)
+
+### `Geometry::Point2D` 结构体
+
+公开字段为 `double x, y`。构造函数签名为 `Point2D(double x_ = 0, double y_ = 0)`。
 
 ### 9.1 IsPointInTriangle
 - **功能**：判断点是否在三角形内
@@ -540,6 +669,13 @@
 ---
 
 ## 10. 时间工具模块 (Time)
+
+### `Time::GpsTime` 结构体
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `week` | `int` | GPS 周 |
+| `seconds` | `double` | 周内秒 |
 
 ### 10.1 GetUnixTimestamp
 - **功能**：获取当前Unix时间戳
@@ -667,21 +803,75 @@
 
 ### 12.6 QuaternionToMatrix
 - **功能**：四元数转旋转矩阵
-- **输入**：`const Vector4d& q` - 四元数 (w, x, y, z)
+- **输入**：`const Quaterniond& q` - 四元数 (w, x, y, z)
 - **输出**：`Matrix3d` - 旋转矩阵
 - **用法**：`Matrix3d R = MatrixUtils::QuaternionToMatrix(q);`
 
-### 12.7 MatrixToEuler
+### 12.7 MatrixToQuaternion
+- **功能**：旋转矩阵转四元数
+- **输入**：`const Matrix3d& R`
+- **输出**：`Quaterniond`
+- **用法**：`Quaterniond q = MatrixUtils::MatrixToQuaternion(R);`
+
+### 12.8 MatrixToEuler
 - **功能**：旋转矩阵转欧拉角
 - **输入**：`const Matrix3d& R` - 旋转矩阵
 - **输出**：`Vector3d` - (roll, pitch, yaw)
 - **用法**：`Vector3d euler = MatrixUtils::MatrixToEuler(R);`
 
-### 12.8 EulerToMatrix
+### 12.9 EulerToMatrix
 - **功能**：欧拉角转旋转矩阵
 - **输入**：`double roll, double pitch, double yaw`
 - **输出**：`Matrix3d` - 旋转矩阵
 - **用法**：`Matrix3d R = MatrixUtils::EulerToMatrix(0.1, 0.2, 0.3);`
+
+### 12.10 EulerToQuaternion
+- **功能**：欧拉角转四元数
+- **输入**：`double roll, double pitch, double yaw`，单位为弧度
+- **输出**：`Quaterniond`
+- **用法**：`Quaterniond q = MatrixUtils::EulerToQuaternion(0.1, 0.2, 0.3);`
+
+### 12.11 QuaternionToEuler
+- **功能**：四元数转欧拉角
+- **输入**：`const Quaterniond& q`
+- **输出**：`Vector3d` - `(roll, pitch, yaw)`，单位为弧度
+- **用法**：`Vector3d euler = MatrixUtils::QuaternionToEuler(q);`
+
+### 12.12 AxisAngleToQuaternion
+- **功能**：轴角转四元数
+- **输入**：`const Vector3d& axis, double angle`，角度单位为弧度
+- **输出**：`Quaterniond`
+- **用法**：`Quaterniond q = MatrixUtils::AxisAngleToQuaternion(axis, angle);`
+
+### 12.13 QuaternionToAxisAngle
+- **功能**：四元数转轴角
+- **输入**：`const Quaterniond& q, Vector3d& axis, double& angle`
+- **输出**：通过引用返回旋转轴和弧度角
+- **用法**：`MatrixUtils::QuaternionToAxisAngle(q, axis, angle);`
+
+### 12.14 Slerp
+- **功能**：两个四元数之间的球面线性插值
+- **输入**：`const Quaterniond& q0, const Quaterniond& q1, double t`
+- **输出**：`Quaterniond`
+- **用法**：`Quaterniond q = MatrixUtils::Slerp(q0, q1, 0.5);`
+
+### 12.15 RotateVector
+- **功能**：使用四元数旋转三维向量
+- **输入**：`const Quaterniond& q, const Vector3d& v`
+- **输出**：`Vector3d`
+- **用法**：`Vector3d rotated = MatrixUtils::RotateVector(q, v);`
+
+### 12.16 QuaternionExp
+- **功能**：三维向量到四元数的指数映射
+- **输入**：`const Vector3d& v`
+- **输出**：`Quaterniond`
+- **用法**：`Quaterniond q = MatrixUtils::QuaternionExp(v);`
+
+### 12.17 QuaternionLog
+- **功能**：四元数到三维向量的对数映射
+- **输入**：`const Quaterniond& q`
+- **输出**：`Vector3d`
+- **用法**：`Vector3d v = MatrixUtils::QuaternionLog(q);`
 
 ---
 
@@ -718,6 +908,8 @@
 - **用法**：`double ms = timer.ElapsedMilliseconds();`
 
 ### 13.2 Logger（日志类）
+
+`Simulation::LogLevel` 可取 `Debug`、`Info`、`Warning`、`Error`、`Fatal`。当前公开便捷方法包含 Debug/Info/Warning/Error；Fatal 级别可通过通用 `Log` 方法使用。
 
 #### Log
 - **功能**：记录日志
@@ -781,10 +973,11 @@
 
 ## 统计总结
 
-**SimTools v2.0 共实现了 120+ 个功能函数，分布在 14 个模块中：**
+**SimTools v2.0 的公开 API 包含基础类型与四元数类，以及 14 个工具/信息模块。下表按公开可调用接口统计；重载分别计数，常量和类型字段不计入函数数量。**
 
 | 模块 | 函数数量 | 主要功能 |
 |------|---------|---------|
+| Quaternion | 39 | 构造、重载、访问、转换、旋转与插值（含输出运算符） |
 | Math | 11 | 基础数学运算、向量运算、角度规范化 |
 | Interpolation | 7 | 一维/二维插值算法 |
 | Coordinate | 14 | GPS/ECEF/NED坐标转换、速度转换 |
@@ -795,12 +988,16 @@
 | Numerical | 5 | 数值积分、求根、微分 |
 | Geometry | 6 | 几何判断、距离计算 |
 | Time | 5 | 时间转换、GPS时间 |
-| Units | 3+16 | 单位转换常量及函数 |
-| MatrixUtils | 8 | 矩阵运算、欧拉角/四元数转换 |
-| Simulation | 12 | 计时器、日志系统 |
+| Units | 3 | 单位转换函数，另有 22 个换算常量 |
+| MatrixUtils | 17 | 矩阵运算、欧拉角/四元数转换 |
+| Simulation | 13 | 计时器、日志系统 |
 | Version | 4 | 版本信息 |
 
 ### 完整函数统计表
+
+#### 0. Quaternion 类
+
+完整接口按“构造与底层对象、静态工厂、格式转换、运算与访问、旋转与插值”分组列于本文第 0.3 节。
 
 #### 1. Math 模块
 
@@ -962,9 +1159,18 @@
 | Transpose | 矩阵转置 | double A[3][3], B[3][3] | void(引用返回) |
 | OuterProduct | 向量外积 | Vector3d a, b | Matrix3d |
 | SkewSymmetric | 斜对称矩阵 | Vector3d v | Matrix3d |
-| QuaternionToMatrix | 四元数转旋转矩阵 | Vector4d q(w,x,y,z) | Matrix3d |
+| QuaternionToMatrix | 四元数转旋转矩阵 | Quaterniond q(w,x,y,z) | Matrix3d |
+| MatrixToQuaternion | 旋转矩阵转四元数 | Matrix3d R | Quaterniond |
 | MatrixToEuler | 矩阵转欧拉角 | Matrix3d R | Vector3d(roll,pitch,yaw) |
 | EulerToMatrix | 欧拉角转矩阵 | double roll, pitch, yaw | Matrix3d |
+| EulerToQuaternion | 欧拉角转四元数 | double roll, pitch, yaw | Quaterniond |
+| QuaternionToEuler | 四元数转欧拉角 | Quaterniond q | Vector3d(roll,pitch,yaw) |
+| AxisAngleToQuaternion | 轴角转四元数 | Vector3d axis, double angle | Quaterniond |
+| QuaternionToAxisAngle | 四元数转轴角 | Quaterniond q, Vector3d& axis, double& angle | void(引用返回) |
+| Slerp | 球面线性插值 | Quaterniond q0, q1, double t | Quaterniond |
+| RotateVector | 四元数旋转向量 | Quaterniond q, Vector3d v | Vector3d |
+| QuaternionExp | 指数映射 | Vector3d v | Quaterniond |
+| QuaternionLog | 对数映射 | Quaterniond q | Vector3d |
 
 #### 13. Simulation 模块
 
@@ -979,7 +1185,7 @@
 | ElapsedSeconds | 经过秒数 | 无 | double |
 | ElapsedMilliseconds | 经过毫秒数 | 无 | double |
 
-**Logger 类（6个方法）**：
+**Logger 类（7个方法）**：
 
 | 函数名 | 函数功能 | 输入 | 输出 |
 |--------|---------|------|------|
@@ -1089,4 +1295,4 @@ int cols = FileIO::CountColumns("output.txt");
 ---
 
 **文档版本**: v2.0.0
-**最后更新**: 2026年2月6日
+**最后更新**: 2026年7月12日
