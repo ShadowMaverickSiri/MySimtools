@@ -14,47 +14,64 @@ namespace SimTools {
     Atmosphere::Parameters Atmosphere::GetParameters(double height_meters) {
         Parameters params;
 
-        // 限制高度范围 [0, 90000] 米
+        // 几何高度 -> 位势高度
         double h = std::max(0.0, std::min(height_meters, 90000.0));
+        const double geopotential_radius = 6356766.0;
+        double H = geopotential_radius * h / (geopotential_radius + h);
 
-        // 简化的国际标准大气模型（ISA）
-        // 实际应用中应使用 1976 标准大气模型
-
-        if (h <= 11000) {
-            // 对流层 (0 - 11 km)
-            // 温度递减率: -6.5 K/km
-            params.temperature = 288.15 - 0.0065 * h;
-            params.pressure = 101325.0 * std::pow(1 - 0.0065 * h / 288.15, 5.25588);
-        } else if (h <= 20000) {
-            // 对流层顶 / 平流层下层 (11 - 20 km)
-            // 温度恒定: 216.65 K
-            params.temperature = 216.65;
-            params.pressure = 22632.0 * std::exp(-(h - 11000) / 6341.62);
-        } else if (h <= 32000) {
-            // 平流层中层 (20 - 32 km)
-            // 温度递增率: +1.0 K/km
-            params.temperature = 216.65 + 0.001 * (h - 20000);
-            params.pressure = 5474.87 * std::pow(1 + 0.001 * (h - 20000) / 216.65, -34.163);
-        } else if (h <= 47000) {
-            // 平流层上层 (32 - 47 km)
-            // 温度递增率: +2.8 K/km
-            params.temperature = 228.65 + 0.0028 * (h - 32000);
-            params.pressure = 868.015 * std::pow(1 + 0.0028 * (h - 32000) / 228.65, -12.201);
-        } else if (h <= 51000) {
-            // 平流层顶 (47 - 51 km)
-            // 温度恒定: 270.65 K
-            params.temperature = 270.65;
-            params.pressure = 110.906 * std::exp(-(h - 47000) / 7922.0);
+        // 1976 标准大气分层参数
+        double base_height;
+        double base_temperature;
+        double lapse_rate;
+        double base_pressure;
+        if (H <= 11000) {
+            base_height = 0.0;
+            base_temperature = 288.15;
+            lapse_rate = -0.0065;
+            base_pressure = 101325.0;
+        } else if (H <= 20000) {
+            base_height = 11000.0;
+            base_temperature = 216.65;
+            lapse_rate = 0.0;
+            base_pressure = 22632.0;
+        } else if (H <= 32000) {
+            base_height = 20000.0;
+            base_temperature = 216.65;
+            lapse_rate = 0.001;
+            base_pressure = 5474.870;
+        } else if (H <= 47000) {
+            base_height = 32000.0;
+            base_temperature = 228.65;
+            lapse_rate = 0.0028;
+            base_pressure = 868.015;
+        } else if (H <= 51000) {
+            base_height = 47000.0;
+            base_temperature = 270.65;
+            lapse_rate = 0.0;
+            base_pressure = 110.906;
         } else {
-            // 中间层 (51 - 90 km)
-            // 温度递减率: -2.8 K/km
-            params.temperature = 270.65 - 0.0028 * (h - 51000);
-            params.pressure = 75.944 * std::pow(1 - 0.0028 * (h - 51000) / 270.65, 12.201);
+            base_height = 51000.0;
+            base_temperature = 270.65;
+            lapse_rate = -0.0028;
+            base_pressure = 75.944;
+        }
+
+        double delta_height = H - base_height;
+        params.temperature = base_temperature + lapse_rate * delta_height;
+        if (lapse_rate == 0.0) {
+            params.pressure = base_pressure * std::exp(
+                -Constants::GRAVITY_SEA_LEVEL * delta_height /
+                (Constants::GAS_CONSTANT_AIR * params.temperature));
+        } else {
+            params.pressure = base_pressure * std::pow(
+                1.0 + lapse_rate * delta_height / base_temperature,
+                -Constants::GRAVITY_SEA_LEVEL /
+                (Constants::GAS_CONSTANT_AIR * lapse_rate));
         }
 
         // 计算其他参数
         params.gravity = Constants::GRAVITY_SEA_LEVEL *
-                        std::pow(Constants::EARTH_SEMIMAJOR / (Constants::EARTH_SEMIMAJOR + h), 2);
+                        std::pow(geopotential_radius / (geopotential_radius + h), 2);
 
         params.density = params.pressure / (Constants::GAS_CONSTANT_AIR * params.temperature);
 
@@ -69,8 +86,9 @@ namespace SimTools {
 
     double Atmosphere::Gravity(double height_meters) {
         double h = std::max(0.0, height_meters);
+        const double geopotential_radius = 6356766.0;
         return Constants::GRAVITY_SEA_LEVEL *
-               std::pow(Constants::EARTH_SEMIMAJOR / (Constants::EARTH_SEMIMAJOR + h), 2);
+               std::pow(geopotential_radius / (geopotential_radius + h), 2);
     }
 
     double Atmosphere::SoundSpeed(double height_meters) {

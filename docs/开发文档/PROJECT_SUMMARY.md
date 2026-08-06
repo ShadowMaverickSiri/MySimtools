@@ -210,6 +210,7 @@ auto ecef = SimTools::Coordinate::GpsToEcef(gps);
 | `BoundNorm2(vec)` | `Math::Norm2(vec)` |
 | `Caculate_g(h)` | `Atmosphere::Gravity(h)` |
 | `BigCircle(...)` | `Geodesy::GreatCircleDistance(...)` |
+| `Rand_N(mu, sigma2)` | `Random::NormalFromVariance(mu, variance)` |
 
 ## 🎉 总结
 

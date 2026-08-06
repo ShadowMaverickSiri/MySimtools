@@ -294,8 +294,8 @@ Vector3d euler = q.ToEuler();
 
 ### 3.8 VelocityToNed
 - **功能**：弹道坐标系速度转换为NED速度
-- **输入**：`double theta, double phi_v, double V, Vector3& vn` - 弹道倾斜角、弹道偏角、速度、输出速度引用
-- **输出**：通过引用返回NED速度
+- **输入**：`double theta, double phi_v, double V, Vector3& vn` - 向上为正的弹道倾斜角(rad)、弹道偏角(rad)、速度、输出速度引用
+- **输出**：通过引用返回NED速度（北、东、地）
 - **用法**：`Coordinate::VelocityToNed(theta, phi_v, V, ned_vel);`
 
 ### 3.9 NedToEcefVelocity
@@ -304,31 +304,67 @@ Vector3d euler = q.ToEuler();
 - **输出**：通过引用返回ECEF速度
 - **用法**：`Coordinate::NedToEcefVelocity(ned_vel, gps, ecef_vel);`
 
-### 3.10 RotationMatrix
+### 3.10 EcefToNueMatrix
+- **功能**：创建ECEF到NUE（北天东）的旋转矩阵
+- **输入**：`double longitude, double latitude` - 经度、纬度（度）
+- **输出**：`Matrix3` - 旋转矩阵，输出分量顺序为（北、天、东）
+- **用法**：`Matrix3 R = Coordinate::EcefToNueMatrix(lon, lat);`
+
+### 3.11 NueToEcefMatrix
+- **功能**：创建NUE（北天东）到ECEF的旋转矩阵
+- **输入**：`double longitude, double latitude` - 经度、纬度（度）
+- **输出**：`Matrix3` - 旋转矩阵
+- **用法**：`Matrix3 R = Coordinate::NueToEcefMatrix(lon, lat);`
+
+### 3.12 EcefToNue
+- **功能**：ECEF位置转换为NUE位置（相对于参考点）
+- **输入**：`const Vector3& ecef_pos, const Vector3& ref_gps`
+- **输出**：`Vector3` - NUE位置（北、天、东）m
+- **用法**：`Vector3 nue = Coordinate::EcefToNue(ecef, ref_gps);`
+
+### 3.13 NueToEcef
+- **功能**：NUE位置转换为ECEF位置（相对于参考点）
+- **输入**：`const Vector3& nue_pos, const Vector3& ref_gps`
+- **输出**：`Vector3` - ECEF位置（X、Y、Z）m
+- **用法**：`Vector3 ecef = Coordinate::NueToEcef(nue, ref_gps);`
+
+### 3.14 VelocityToNue
+- **功能**：弹道坐标系速度转换为NUE速度
+- **输入**：`double theta, double phi_v, double V, Vector3& vn` - 向上为正的弹道倾斜角(rad)、弹道偏角(rad)、速度、输出速度引用
+- **输出**：通过引用返回NUE速度（北、天、东）
+- **用法**：`Coordinate::VelocityToNue(theta, phi_v, V, nue_vel);`
+
+### 3.15 NueToEcefVelocity
+- **功能**：NUE速度转换为ECEF速度
+- **输入**：`const Vector3& nue_vel, const Vector3& gps_pos, Vector3& ecef_vel`
+- **输出**：通过引用返回ECEF速度
+- **用法**：`Coordinate::NueToEcefVelocity(nue_vel, gps, ecef_vel);`
+
+### 3.16 RotationMatrix
 - **功能**：创建基本旋转矩阵
 - **输入**：`double angle, int axis` - 角度、轴(1=X, 2=Y, 3=Z)
 - **输出**：`Matrix3` - 旋转矩阵
 - **用法**：`Matrix3 R = Coordinate::RotationMatrix(angle, 3);`
 
-### 3.11 DmsToDecimal
+### 3.17 DmsToDecimal
 - **功能**：度分秒转换为十进制
 - **输入**：`double degree, double minute, double second`
 - **输出**：`double` - 十进制角度
 - **用法**：`double dec = Coordinate::DmsToDecimal(120, 30, 36);`
 
-### 3.12 DecimalToDms
+### 3.18 DecimalToDms
 - **功能**：十进制转换为度分秒
 - **输入**：`double decimal, int& degree, int& minute, double& second`
 - **输出**：通过引用返回度分秒
 - **用法**：`Coordinate::DecimalToDms(120.51, deg, min, sec);`
 
-### 3.13 RadToDeg
+### 3.19 RadToDeg
 - **功能**：弧度转角度
 - **输入**：`double rad`
 - **输出**：`double` - 角度
 - **用法**：`double deg = Coordinate::RadToDeg(3.14159);`
 
-### 3.14 DegToRad
+### 3.20 DegToRad
 - **功能**：角度转弧度
 - **输入**：`double deg`
 - **输出**：`double` - 弧度
@@ -371,13 +407,14 @@ Vector3d euler = q.ToEuler();
 ### 4.6 VincentyInverse
 - **功能**：Vincenty反解（已知两点求距离和方位角）
 - **输入**：`double lon1, double lat1, double lon2, double lat2, double& distance, double& azimuth1, double& azimuth2`
-- **输出**：通过引用返回距离和两个方位角
+- **输出**：通过引用返回距离、起点前向方位角和终点前向方位角；点2指回点1的反方位角为`azimuth2 + 180°`
 - **用法**：`Geodesy::VincentyInverse(lon1, lat1, lon2, lat2, dist, az1, az2);`
+- **异常**：对经典Vincenty算法无法收敛的近对跖点抛出`std::runtime_error`，避免静默返回错误结果
 
 ### 4.7 VincentyDirect
 - **功能**：Vincenty正解（已知起点、方位角和距离求终点）
 - **输入**：`double lon1, double lat1, double azimuth, double distance, double& lon2, double& lat2, double& azimuth2`
-- **输出**：通过引用返回终点坐标和反方位角
+- **输出**：通过引用返回终点坐标和终点前向方位角
 - **用法**：`Geodesy::VincentyDirect(lon1, lat1, az, dist, lon2, lat2, az2);`
 
 ### 4.8 TargetFromSite
@@ -385,6 +422,7 @@ Vector3d euler = q.ToEuler();
 - **输入**：`const Vector3d& site_gps, double azimuth, double target_height, double slant_range`
 - **输出**：`Vector3d` - 目标GPS坐标
 - **用法**：`Vector3d target = Geodesy::TargetFromSite(site, az, h, range);`
+- **说明**：返回点同时满足方位角、目标椭球高和ECEF直线斜距；约束不可达时抛出`std::invalid_argument`
 
 ### 4.9 SiteAzimuth
 - **功能**：计算两GPS点间的站心方位角
@@ -414,7 +452,7 @@ Vector3d euler = q.ToEuler();
 
 ### 5.1 GetParameters
 - **功能**：获取指定高度的完整大气参数
-- **输入**：`double height_meters` - 高度（米）
+- **输入**：`double height_meters` - 几何高度（米），内部转换为标准大气分层使用的位势高度
 - **输出**：`Parameters` - 包含气压、密度、重力、声速、温度
 - **用法**：`auto params = Atmosphere::GetParameters(10000.0);`
 
@@ -506,13 +544,19 @@ Vector3d euler = q.ToEuler();
 - **输出**：`double` - 随机数
 - **用法**：`double r = Random::Normal(100.0, 15.0);`
 
-### 6.7 Exponential
+### 6.7 NormalFromVariance
+- **功能**：按方差生成正态分布，兼容旧版`Rand_N(mu, sigma2)`参数语义
+- **输入**：`double mu, double variance` - 均值、方差
+- **输出**：`double` - 随机数
+- **用法**：`double r = Random::NormalFromVariance(100.0, 225.0);`
+
+### 6.8 Exponential
 - **功能**：生成指数分布
 - **输入**：`double lambda` - 参数
 - **输出**：`double` - 随机数
 - **用法**：`double r = Random::Exponential(2.0);`
 
-### 6.8 Weibull
+### 6.9 Weibull
 - **功能**：生成韦伯分布
 - **输入**：`double shape, double scale` - 形状参数、尺度参数
 - **输出**：`double` - 随机数
@@ -980,10 +1024,10 @@ using OdeFunction = std::function<VectorXd(double, const VectorXd&)>;
 | Quaternion | 39 | 构造、重载、访问、转换、旋转与插值（含输出运算符） |
 | Math | 11 | 基础数学运算、向量运算、角度规范化 |
 | Interpolation | 7 | 一维/二维插值算法 |
-| Coordinate | 14 | GPS/ECEF/NED坐标转换、速度转换 |
+| Coordinate | 20 | GPS/ECEF/NED/NUE坐标转换、速度转换 |
 | Geodesy | 10 | 地理距离、方位角、Vincenty计算 |
 | Atmosphere | 9 | 大气参数计算、马赫数转换 |
-| Random | 8 | 各种分布的随机数生成 |
+| Random | 9 | 各种分布的随机数生成 |
 | FileIO | 10 | 文件读写、数据统计 |
 | Numerical | 5 | 数值积分、求根、微分 |
 | Geometry | 6 | 几何判断、距离计算 |
@@ -1040,6 +1084,12 @@ using OdeFunction = std::function<VectorXd(double, const VectorXd&)>;
 | NedToEcef | NED转ECEF位置 | Vector3 ned_pos, Vector3 ref_gps | Vector3(X,Y,Z)m |
 | VelocityToNed | 弹道速度转NED速度 | double theta, phi_v, V, Vector3& vn | void(引用返回) |
 | NedToEcefVelocity | NED速度转ECEF速度 | Vector3 ned_vel, gps_pos, Vector3& ecef_vel | void(引用返回) |
+| EcefToNueMatrix | ECEF到NUE旋转矩阵 | double lon, lat | Matrix3 |
+| NueToEcefMatrix | NUE到ECEF旋转矩阵 | double lon, lat | Matrix3 |
+| EcefToNue | ECEF转NUE位置 | Vector3 ecef_pos, Vector3 ref_gps | Vector3(北,天,东)m |
+| NueToEcef | NUE转ECEF位置 | Vector3 nue_pos, Vector3 ref_gps | Vector3(X,Y,Z)m |
+| VelocityToNue | 弹道速度转NUE速度 | double theta, phi_v, V, Vector3& vn | void(引用返回) |
+| NueToEcefVelocity | NUE速度转ECEF速度 | Vector3 nue_vel, gps_pos, Vector3& ecef_vel | void(引用返回) |
 | RotationMatrix | 基本旋转矩阵 | double angle, int axis(1/2/3) | Matrix3 |
 | DmsToDecimal | 度分秒转十进制 | double degree, minute, second | double |
 | DecimalToDms | 十进制转度分秒 | double decimal, int& deg, min, double& sec | void(引用返回) |
@@ -1085,6 +1135,7 @@ using OdeFunction = std::function<VectorXd(double, const VectorXd&)>;
 | UniformInt | 整数均匀分布 | int a, b | int |
 | Normal01 | 标准正态分布N(0,1) | 无 | double |
 | Normal | 正态分布N(μ,σ²) | double mu, sigma | double |
+| NormalFromVariance | 按方差生成正态分布 | double mu, variance | double |
 | Exponential | 指数分布 | double lambda | double |
 | Weibull | 韦伯分布 | double shape, scale | double |
 

@@ -40,13 +40,25 @@ namespace SimTools {
 
         double p = std::sqrt(x * x + y * y);
 
+        // 地轴经度约定为 0°
+        if (p < 1e-12) {
+            if (std::abs(z) < 1e-12) {
+                // 地心经纬度约定为 (0°, 0°)
+                return Vector3(0.0, 0.0, -Constants::EARTH_SEMIMAJOR);
+            }
+            double latitude = (z > 0.0) ? 90.0 : -90.0;
+            double height = std::abs(z) - Constants::EARTH_SEMIMINOR;
+            return Vector3(0.0, latitude, height);
+        }
+
         // 经度
         double lon = std::atan2(y, x) * Constants::RAD_TO_DEG;
 
         // 纬度（迭代计算）
         double e2 = Constants::ECCENTRICITY_FIRST * Constants::ECCENTRICITY_FIRST;
-        double lat = std::atan2(z, p * (1 - Constants::EARTH_FLATTENING));
-        double N, h;
+        double lat = std::atan2(z, p * (1 - e2));
+        double N = 0.0;
+        double h = 0.0;
 
         for (int iter = 0; iter < 10; iter++) {
             double sinLat = std::sin(lat);
@@ -61,6 +73,16 @@ namespace SimTools {
             }
             lat = lat_new;
         }
+
+        // 近极区使用 Z 分量计算高度，降低数值误差
+        double sinLat = std::sin(lat);
+        double cosLat = std::cos(lat);
+        N = Constants::EARTH_SEMIMAJOR / std::sqrt(1 - e2 * sinLat * sinLat);
+        if (std::abs(cosLat) > std::abs(sinLat)) {
+            h = p / cosLat - N;
+        } else {
+            h = z / sinLat - N * (1 - e2);
+        }
         lat *= Constants::RAD_TO_DEG;
 
         return Vector3(lon, lat, h);
@@ -73,6 +95,9 @@ namespace SimTools {
         double z = ecef[2];
 
         double p = std::sqrt(x * x + y * y);
+        if (p < 1e-12) {
+            return EcefToGps(ecef);
+        }
         double lon = std::atan2(y, x);
 
         // 初始估计
@@ -135,7 +160,7 @@ namespace SimTools {
         double sinLat = std::sin(lat);
         double cosLat = std::cos(lat);
 
-        // ECEF 到 NED 的旋转矩阵（标准公式）
+        // ECEF -> NED
         Matrix3 R;
         R(0, 0) = -sinLat * cosLon;
         R(0, 1) = -sinLat * sinLon;
@@ -167,18 +192,78 @@ namespace SimTools {
     }
 
     // ============================================================
+    // NUE 坐标系（北、天、东）
+    // ============================================================
+
+    Coordinate::Matrix3 Coordinate::EcefToNueMatrix(double longitude, double latitude) {
+        double lon = longitude * Constants::DEG_TO_RAD;
+        double lat = latitude * Constants::DEG_TO_RAD;
+
+        double sinLon = std::sin(lon);
+        double cosLon = std::cos(lon);
+        double sinLat = std::sin(lat);
+        double cosLat = std::cos(lat);
+
+        Matrix3 R;
+        // 北
+        R(0, 0) = -sinLat * cosLon;
+        R(0, 1) = -sinLat * sinLon;
+        R(0, 2) = cosLat;
+        // 天
+        R(1, 0) = cosLat * cosLon;
+        R(1, 1) = cosLat * sinLon;
+        R(1, 2) = sinLat;
+        // 东
+        R(2, 0) = -sinLon;
+        R(2, 1) = cosLon;
+        R(2, 2) = 0;
+
+        return R;
+    }
+
+    Coordinate::Matrix3 Coordinate::NueToEcefMatrix(double longitude, double latitude) {
+        return EcefToNueMatrix(longitude, latitude).transpose();
+    }
+
+    Coordinate::Vector3 Coordinate::EcefToNue(const Vector3& ecef_pos, const Vector3& ref_gps) {
+        Vector3 ref_ecef = GpsToEcef(ref_gps);
+        Matrix3 E2N = EcefToNueMatrix(ref_gps[0], ref_gps[1]);
+        return E2N * (ecef_pos - ref_ecef);
+    }
+
+    Coordinate::Vector3 Coordinate::NueToEcef(const Vector3& nue_pos, const Vector3& ref_gps) {
+        Vector3 ref_ecef = GpsToEcef(ref_gps);
+        Matrix3 N2E = NueToEcefMatrix(ref_gps[0], ref_gps[1]);
+        return ref_ecef + N2E * nue_pos;
+    }
+
+    // ============================================================
     // 速度转换
     // ============================================================
 
     void Coordinate::VelocityToNed(double theta, double phi_v, double V, Vector3& vn) {
-        vn[0] = V * std::cos(theta) * std::cos(phi_v);
-        vn[1] = V * std::sin(theta);
-        vn[2] = -V * std::cos(theta) * std::sin(phi_v);
+        Vector3 nue_vel;
+        VelocityToNue(theta, phi_v, V, nue_vel);
+        vn[0] = nue_vel[0];
+        vn[1] = nue_vel[2];
+        vn[2] = -nue_vel[1];
     }
 
     void Coordinate::NedToEcefVelocity(const Vector3& ned_vel, const Vector3& gps_pos, Vector3& ecef_vel) {
         Matrix3 N2E = NedToEcefMatrix(gps_pos[0], gps_pos[1]);
         ecef_vel = N2E * ned_vel;
+    }
+
+    void Coordinate::VelocityToNue(double theta, double phi_v, double V, Vector3& vn) {
+        // theta：向上为正的倾角；phi_v：偏角
+        vn[0] = V * std::cos(theta) * std::cos(phi_v);   // 北
+        vn[1] = V * std::sin(theta);                     // 天
+        vn[2] = -V * std::cos(theta) * std::sin(phi_v);  // 东
+    }
+
+    void Coordinate::NueToEcefVelocity(const Vector3& nue_vel, const Vector3& gps_pos, Vector3& ecef_vel) {
+        Matrix3 N2E = NueToEcefMatrix(gps_pos[0], gps_pos[1]);
+        ecef_vel = N2E * nue_vel;
     }
 
     // ============================================================

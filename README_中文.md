@@ -26,7 +26,7 @@
 |------|------|
 | **Math** | 基础数学工具（符号、最大最小值、向量运算） |
 | **Interpolation** | 插值算法（线性、拉格朗日、三次样条） |
-| **Coordinate** | 坐标转换（GPS ↔ ECEF ↔ NED） |
+| **Coordinate** | 坐标转换（GPS ↔ ECEF ↔ NED/NUE） |
 | **Geodesy** | 地理计算（距离、方位角、Vincenty公式） |
 | **Atmosphere** | 大气参数（温度、气压、密度、声速） |
 | **Random** | 随机数生成（均匀分布、正态分布） |

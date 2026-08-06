@@ -89,7 +89,7 @@ make
 |--------|-------------|
 | **Math** | Basic math utilities (sign, clamp, angle regulation) |
 | **Interpolation** | Linear, Lagrange, cubic spline interpolation |
-| **Coordinate** | GPS ↔ ECEF ↔ NED coordinate conversions |
+| **Coordinate** | GPS ↔ ECEF ↔ NED/NUE coordinate conversions |
 | **Geodesy** | Great circle, Haversine, Vincenty calculations |
 | **Atmosphere** | ISA atmosphere model (pressure, density, temperature) |
 | **Random** | Uniform and normal distribution generators |

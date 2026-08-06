@@ -5,6 +5,7 @@
 #include "SimTools_v2.h"
 #include <cmath>
 #include <algorithm>
+#include <stdexcept>
 
 namespace SimTools {
 
@@ -26,6 +27,7 @@ namespace SimTools {
                   std::cos(lat1_rad) * std::cos(lat2_rad) *
                   std::sin(dlon / 2) * std::sin(dlon / 2);
 
+        a = std::max(0.0, std::min(1.0, a));
         double c = 2 * std::atan2(std::sqrt(a), std::sqrt(1 - a));
 
         return Constants::EARTH_SEMIMAJOR * c;
@@ -101,11 +103,17 @@ namespace SimTools {
         double sinU1 = tanU1 * cosU1;
         double sinU2 = tanU2 * cosU2;
 
-        double L = L2 - L1;
+        double L = Math::RegulatePi(L2 - L1);
         double lambda = L;
-        double lambdaPrev;
+        double lambdaPrev = lambda;
         int iterLimit = 100;
-        double cosSqAlpha, sinSigma, cosSigma, sigma, cos2SigmaM, alpha;
+        double cosSqAlpha = 0.0;
+        double sinSigma = 0.0;
+        double cosSigma = 1.0;
+        double sigma = 0.0;
+        double cos2SigmaM = 0.0;
+        double sinAlpha = 0.0;
+        bool converged = false;
 
         // 迭代求解 lambda
         for (int iter = 0; iter < iterLimit; iter++) {
@@ -127,20 +135,30 @@ namespace SimTools {
 
             cosSigma = sinU1 * sinU2 + cosU1 * cosU2 * cosLambda;
             sigma = std::atan2(sinSigma, cosSigma);
-            alpha = std::asin(cosU1 * cosU2 * sinLambda / sinSigma);
-
-            cosSqAlpha = 1 - std::sin(alpha) * std::sin(alpha);
-            cos2SigmaM = cosSigma - 2 * sinU1 * sinU2 / cosSqAlpha;
+            sinAlpha = cosU1 * cosU2 * sinLambda / sinSigma;
+            sinAlpha = std::max(-1.0, std::min(1.0, sinAlpha));
+            cosSqAlpha = std::max(0.0, 1 - sinAlpha * sinAlpha);
+            if (cosSqAlpha < 1e-15) {
+                // 赤道大地线极限
+                cos2SigmaM = 0.0;
+            } else {
+                cos2SigmaM = cosSigma - 2 * sinU1 * sinU2 / cosSqAlpha;
+            }
 
             double C = f / 16 * cosSqAlpha * (4 + f * (4 - 3 * cosSqAlpha));
             lambdaPrev = lambda;
-            lambda = L + (1 - C) * f * std::sin(alpha) *
+            lambda = L + (1 - C) * f * sinAlpha *
                      (sigma + C * sinSigma * (cos2SigmaM + C * cosSigma *
                       (-1 + 2 * cos2SigmaM * cos2SigmaM)));
 
             if (std::abs(lambda - lambdaPrev) < 1e-12) {
+                converged = true;
                 break;
             }
+        }
+
+        if (!converged) {
+            throw std::runtime_error("VincentyInverse failed to converge for the supplied points");
         }
 
         // 计算距离
@@ -168,7 +186,6 @@ namespace SimTools {
     void Geodesy::VincentyDirect(double lon1, double lat1,
                                double azimuth, double distance,
                                double& lon2, double& lat2, double& azimuth2) {
-        // 输入参数转换
         double L1 = lon1 * Constants::DEG_TO_RAD;
         double B1 = lat1 * Constants::DEG_TO_RAD;
         double alpha1 = azimuth * Constants::DEG_TO_RAD;
@@ -195,8 +212,9 @@ namespace SimTools {
         double B = u2 / 1024 * (256 + u2 * (-128 + u2 * (74 - 47 * u2)));
 
         double sigma = s / (b * A);
-        double sigmaPrev;
+        double sigmaPrev = sigma;
         int iterLimit = 100;
+        bool converged = false;
 
         // 迭代求解 sigma
         for (int iter = 0; iter < iterLimit; iter++) {
@@ -213,20 +231,24 @@ namespace SimTools {
             sigma = s / (b * A) + deltaSigma;
 
             if (std::abs(sigma - sigmaPrev) < 1e-12) {
+                converged = true;
                 break;
             }
         }
 
-        // 计算纬度
+        if (!converged) {
+            throw std::runtime_error("VincentyDirect failed to converge for the supplied distance");
+        }
+
         double cos2SigmaM = std::cos(2 * sigma1 + sigma);
         double sinSigma = std::sin(sigma);
         double cosSigma = std::cos(sigma);
 
-        double B2_denom = cosU1 * cosSigma - sinU1 * sinSigma * alpha1_cos;
+        // 纬度分母项，与经度公式分母不同
+        double B2_denom = sinU1 * sinSigma - cosU1 * cosSigma * alpha1_cos;
         double B2 = atan2(sinU1 * cosSigma + cosU1 * sinSigma * alpha1_cos,
                           (1 - f) * std::sqrt(sinAlpha * sinAlpha + B2_denom * B2_denom));
 
-        // 计算经度
         double lambda = std::atan2(sinSigma * alpha1_sin,
                                   cosU1 * cosSigma - sinU1 * sinSigma * alpha1_cos);
 
@@ -237,11 +259,10 @@ namespace SimTools {
 
         double L2 = L1 + L;
 
-        // 计算反向方位角
+        // 终点处沿原大地线继续前进的前向方位角
         double alpha2 = std::atan2(sinAlpha, -sinU1 * sinSigma + cosU1 * cosSigma * alpha1_cos);
 
-        // 返回结果
-        lon2 = L2 * Constants::RAD_TO_DEG;
+        lon2 = Math::Regulate180(L2 * Constants::RAD_TO_DEG);
         lat2 = B2 * Constants::RAD_TO_DEG;
         azimuth2 = alpha2 * Constants::RAD_TO_DEG;
         azimuth2 = Math::Regulate360(azimuth2);
@@ -255,25 +276,55 @@ namespace SimTools {
                                           double azimuth,
                                           double target_height,
                                           double slant_range) {
+        if (slant_range < 0.0) {
+            throw std::invalid_argument("slant_range must be non-negative");
+        }
+
         Vector3d site_ecef = Coordinate::GpsToEcef(site_gps);
         Matrix3d E2N = Coordinate::EcefToNedMatrix(site_gps[0], site_gps[1]);
-
-        // 在 NED 坐标系中计算目标位置
         double az_rad = azimuth * Constants::DEG_TO_RAD;
-        double el_rad = 0.0;  // 假设目标在同一高度（可通过目标高度调整）
 
-        Vector3d target_ned;
-        target_ned[0] = slant_range * std::cos(el_rad) * std::cos(az_rad);  // 北
-        target_ned[1] = slant_range * std::cos(el_rad) * std::sin(az_rad);  // 东
-        target_ned[2] = -slant_range * std::sin(el_rad);                     // 地
+        if (slant_range == 0.0) {
+            if (std::abs(target_height - site_gps[2]) > 1e-9) {
+                throw std::invalid_argument("zero slant_range requires the target to equal the site height");
+            }
+            return site_gps;
+        }
 
-        // 转换到 ECEF
-        Vector3d target_ecef = site_ecef + E2N.transpose() * target_ned;
+        // 二分求解满足目标椭球高的仰角
+        auto targetAtElevation = [&](double elevation) {
+            Vector3d target_ned;
+            double horizontal = slant_range * std::cos(elevation);
+            target_ned[0] = horizontal * std::cos(az_rad);
+            target_ned[1] = horizontal * std::sin(az_rad);
+            target_ned[2] = -slant_range * std::sin(elevation);
+            return Coordinate::EcefToGps(site_ecef + E2N.transpose() * target_ned);
+        };
 
-        // 转换到 GPS 并设置高度
-        Vector3d target_gps = Coordinate::EcefToGps(target_ecef);
+        double low = -Constants::PI / 2;
+        double high = Constants::PI / 2;
+        double fLow = targetAtElevation(low)[2] - target_height;
+        double fHigh = targetAtElevation(high)[2] - target_height;
+        if (fLow * fHigh > 0.0) {
+            throw std::invalid_argument("target height is unreachable at the supplied slant_range");
+        }
+
+        Vector3d target_gps = site_gps;
+        for (int iter = 0; iter < 80; ++iter) {
+            double mid = (low + high) / 2;
+            target_gps = targetAtElevation(mid);
+            double fMid = target_gps[2] - target_height;
+            if (std::abs(fMid) < 1e-7) {
+                break;
+            }
+            if (fLow * fMid <= 0.0) {
+                high = mid;
+            } else {
+                low = mid;
+                fLow = fMid;
+            }
+        }
         target_gps[2] = target_height;
-
         return target_gps;
     }
 
@@ -292,7 +343,7 @@ namespace SimTools {
     double Geodesy::SiteDistance(const Vector3d& gpsA, const Vector3d& gpsB) {
         Vector3d posA = Coordinate::GpsToEcef(gpsA);
         Vector3d posB = Coordinate::GpsToEcef(gpsB);
-        return (posB - posA).norm();  // 使用成员函数避免重载歧义
+        return (posB - posA).norm();
     }
 
 } // namespace SimTools

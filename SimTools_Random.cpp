@@ -92,6 +92,10 @@ namespace SimTools {
         return distribution(generator_);
     }
 
+    double Random::NormalFromVariance(double mu, double variance) {
+        return Normal(mu, std::sqrt(std::abs(variance)));
+    }
+
     // ============================================================
     // 指数分布
     // ============================================================

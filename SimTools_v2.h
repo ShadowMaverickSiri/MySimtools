@@ -491,15 +491,37 @@ namespace SimTools {
         static Vector3 NedToEcef(const Vector3& ned_pos,
                                 const Vector3& ref_gps);
 
+        // ECEF -> NUE [北, 天, 东]
+        static Matrix3 EcefToNueMatrix(double longitude, double latitude);
+
+        // NUE -> ECEF
+        static Matrix3 NueToEcefMatrix(double longitude, double latitude);
+
+        // ECEF -> 参考点 NUE
+        static Vector3 EcefToNue(const Vector3& ecef_pos,
+                                const Vector3& ref_gps);
+
+        // 参考点 NUE -> ECEF
+        static Vector3 NueToEcef(const Vector3& nue_pos,
+                                const Vector3& ref_gps);
+
         // ===== 速度转换 =====
 
-        // 从弹道坐标系速度到 NED 速度
-        // theta: 弹道倾斜角, phi_v: 弹道偏角, V: 速度
+        // 弹道速度 -> NED [北, 东, 地]；theta 向上为正，角度单位 rad
         static void VelocityToNed(double theta, double phi_v, double V,
                                  Vector3& vn);
 
         // NED 速度 -> ECEF 速度
         static void NedToEcefVelocity(const Vector3& ned_vel,
+                                     const Vector3& gps_pos,
+                                     Vector3& ecef_vel);
+
+        // 弹道速度 -> NUE [北, 天, 东]；theta 向上为正，角度单位 rad
+        static void VelocityToNue(double theta, double phi_v, double V,
+                                 Vector3& vn);
+
+        // NUE 速度 -> ECEF 速度
+        static void NueToEcefVelocity(const Vector3& nue_vel,
                                      const Vector3& gps_pos,
                                      Vector3& ecef_vel);
 
@@ -571,6 +593,7 @@ namespace SimTools {
         // ===== Vincenty 正反解 =====
 
         // Vincenty 反解：已知两点坐标，求距离和方位角
+        // azimuth2 为点2处的前向方位角；点2指回点1的反方位角为 azimuth2 + 180°
         static void VincentyInverse(double lon1, double lat1,
                                    double lon2, double lat2,
                                    double& distance,
@@ -578,6 +601,7 @@ namespace SimTools {
                                    double& azimuth2);
 
         // Vincenty 正解：已知起点、方位角和距离，求终点
+        // azimuth2 为终点处沿原大地线继续前进的前向方位角
         static void VincentyDirect(double lon1, double lat1,
                                  double azimuth, double distance,
                                  double& lon2, double& lat2,
@@ -678,6 +702,9 @@ namespace SimTools {
 
         // 正态分布 N(mu, sigma²)
         static double Normal(double mu, double sigma);
+
+        // 正态分布 N(mu, variance)，兼容 Rand_N 参数语义
+        static double NormalFromVariance(double mu, double variance);
 
         // ===== 其他分布 =====
 
